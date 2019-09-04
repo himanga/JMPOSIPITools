@@ -1,0 +1,48 @@
+Names default to here( 1 );
+
+//Set this to the add-in ID:
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+//get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+);
+
+
+// A function to evaluate another function for each item in a list
+//
+// x   A list
+// fn  A function with one argument, pass using expr()
+//
+// Returns a list the same length as x.
+//
+ns:map = Function( {x = {}, fn = Function( {x}, x ) },
+	r = {};
+	if( N items( x ) > 0,
+		for(i = 1, i <= N items( x ), i++,
+			r = Insert( r, fn( x[i] ) );
+		);
+	);
+	return(r);
+);
+
+//Utility function to make for loops, combo 'map' and 'apply'
+//this is a 'fake' map/apply function because it allows (and 
+//is used for) side effects and it also returns a value
+ns:mapply = function( {x, foo, arg1 = "__missing", arg2 = "__missing"}, { i, r = {}, x, foo, arg1, arg2 },
+	if( N Items( x ) < 1,
+		return({}), //empty list supplied, return an empty list
+		for( i = 1, i <= N Items(x), i++,
+			if( 
+				arg1 == "__missing",
+				r = Insert( r, foo( x[i] ) ),
+				arg2 == "__missing",
+				r = Insert( r, foo( x[i], arg1 ) ),
+				r = Insert( r, foo( x[i], arg1, arg2 ) )
+			)
+		)
+	);
+	return(r);
+);

@@ -1,0 +1,6 @@
+id=com.github.himanga.JMPOSIPITools
+name=JMP OSI PI Data
+supportJmpSE=0
+addinVersion=0.01
+minJmpVersion=13
+host=Win

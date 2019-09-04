@@ -1,0 +1,58 @@
+Names default to here( 1 );
+
+//Set this to the add-in ID:
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+//get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+);
+
+//store the home directory for this add-in
+ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
+
+//read a file with information about the add-in (name, developer, etc)
+ns:metadata_aa = Include( ns:addinhome || "customMetadata.jsl" );
+
+//load misc functions used across the whole add-in,
+//and functions to log usage information, check for updates, and store user preferences
+Include( ns:addinhome || "addinTools.jsl" );
+Include( ns:addinhome || "addinUserPref.jsl" );
+
+//set default preference values
+ns:DefaultPref = Associative Array({
+	{"PI_Server", "My PI Archive"},
+	{"Max_Rows", "10000"},
+	{"Open_Script_Windows", "no"},
+	{"Match_Type", "Contains"}
+});
+
+//set preference types, descriptions, and value restrictions
+ns:PrefInfo = Associative Array({
+	{"PI_Server", {
+		"ODBC connection name of the default PI Server.",
+		"char",
+		{}
+	}},
+	{"Max_Rows", {
+		"Default maximum number of rows to return, enter a whole, positive number.",
+		"char",
+		{}
+	}},
+	{"Open_Script_Windows", {
+		"Should SQL and JSL windows be open by default (yes/no)?",
+		"char",
+		{"yes", "no"}
+	}},
+	{"Match_Type", {
+		"Enter the default query type (Exact/Starts with/Ends with/Contains').",
+		"char",
+		{"Exact", "Starts with", "Ends with", "Contains"}
+	}}
+});
+
+//Load user preferences
+ns:LoadUserPref();
+

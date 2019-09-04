@@ -1,0 +1,165 @@
+Names default to here( 1 );
+
+//Set this to the add-in ID:
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+//get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+);
+
+//Set path for user preferences
+ns:AppDataPath = Convert file path( "$USER_APPDATA" );
+ns:AppDataPath = Regex( ns:AppDataPath, "(.*?/)(SAS/)?JMP[^/]*/[^/]+/", "\1") || 
+	"JMP AddIn " || thisAddIn || "/";
+ns:UserPrefPath = ns:AppDataPath || "UserPref.jsl";
+
+//Set a preference value
+ns:UpdatePreference = function( {pref, value, savetofile = 1},
+	ns:UserPref[pref] = value;
+	If( savetofile = 1, ns:SaveUserPref );
+);
+
+//Save preferences to a file
+ns:SaveUserPref = function( {},
+	PrefStr = Char( Name Expr( ns:UserPref ) );
+	If( !Directory Exists( ns:AppDataPath ),
+		Create Directory( ns:AppDataPath );
+	);
+	If( Directory Exists( ns:AppDataPath ),
+		Save Text File( ns:UserPrefPath, PrefStr );
+	);
+	
+);
+
+//Load user preferences
+ns:LoadUserPref = function ({},
+	
+	//Load defaults
+	newPref = ns:DefaultPref;
+	
+	
+	If( File exists( ns:UserPrefPath ),
+		//Load from file
+		savedPref = Parse( Load text file( ns:UserPrefPath ) );
+		
+		//Overwrite default preferences with any saved in the file
+		//insert each preference into the user interface
+		pref = savedPref << First;
+		totalpref = N Items( savedPref );
+		for( prefn = 1, prefn <= totalpref, prefn++,
+			newPref[pref] = savedPref[pref];
+			pref = savedPref << Next( pref );
+		);
+	
+	);
+	
+	ns:UserPref = newPref;
+);
+
+//Dialog box for user to change preferences
+ns:UserPrefUI = function({},
+	//User interface to set preferences
+	prefwin = new window( "AddIn Preferences",
+		v list box(
+			Text box( "Preferences for " || ns:metadata_aa["name"], 
+				<< set width( 500 );, 
+				<< Set font size( 20 );,
+				<< Padding(
+					Left( 0 ),
+					Top( 0 ),
+					Right( 0 ),
+					Bottom( 20 ))
+			),
+			V List Box(
+				
+			),
+			
+			H list box(
+				Button Box("Close",
+					prefwin << Close window();
+				),
+				<< Padding(
+					Left( 0 ),
+					Top( 20 ),
+					Right( 20 ),
+					Bottom( 0 )
+				)
+			),
+			<< Padding(
+				Left( 20 ),
+				Top( 0 ),
+				Right( 20 ),
+				Bottom( 10 )
+			)
+		);
+	);
+	
+	//Save preferences to file
+	prefwin << On close( ns:SaveUserPref() );
+
+	//Function to read values and update user pref
+
+	//insert each preference into the user interface
+	pref = ns:UserPref << First;
+	totalpref = N Items( ns:UserPref );
+	for( prefn = 1, prefn <= totalpref, prefn++,
+		//text box describing the preference
+		(prefwin << Find( ListBox(3) ) ) << Append( Text Box(
+			ns:PrefInfo[pref][1] || ":",
+			<< Padding(
+				Left( 0 ),
+				Top( 10 ),
+				Right( 0 ),
+				Bottom( 0 )
+			),
+			<< set width( 500 );
+		) );
+		//text edit box with the preference value
+		Eval( Eval Expr( (prefwin << Find( ListBox(3) ) ) << Append( Expr( Parse( "TEB_" || Char( pref ) ) ) =
+			Text Edit Box(
+				ns:UserPref[ Expr( pref ) ], 
+				<< Set Width( 500 ),
+				<< Set Script(
+
+					//Get the user-entered value
+					newVal = Expr( Parse( "TEB_" || Char( pref ) ) ) << Get text;
+
+					//Check that the user entered an allowed value
+					If( N Items( ns:PrefInfo[Expr( pref )][3] ) > 0,
+						isallowed = sum( ns:map(
+							ns:PrefInfo[ Expr( pref )][3]
+						,
+							function( {x},
+								if( x == newVal,
+									1,
+									0
+								);
+							);
+						) );
+					,
+						isallowed = 1
+					);
+
+					//If an allowed value then set it, otherwise reset to the last good value
+					If( isallowed > 0,
+						//set the value
+						ns:UserPref[ Expr( Name Expr( pref ) ) ] = newVal;,
+						//reset the value
+						Expr( Parse( "TEB_" || Char( pref ) ) ) << Set text( ns:UserPref[ Expr( pref ) ] );
+					);
+
+				),
+				<< Padding(
+					Left( 0 ),
+					Top( 5 ),
+					Right( 0 ),
+					Bottom( 0 )
+				)
+			)
+		) ) );
+		pref = ns:UserPref << Next( pref );
+	);
+);

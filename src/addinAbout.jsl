@@ -1,0 +1,49 @@
+Names default to here( 1 );
+
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+//get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+);
+
+//add a zero before single digit numbers, return text
+padnum = function( {x},
+	if( x < 10, "0", "" ) || char(x);
+);
+
+//the about window
+aboutwin = new window( "About",
+	v list box(
+		text box( ns:metadata_aa["name"], << set width( 500 );, << Set font size( 24 ); ),
+		text box( <<set width( 500 ) ),
+		text box( "Developed by: " || ns:metadata_aa["developer"] || ".\!N" || 
+			ns:metadata_aa["developeremail"] || "\!N", << set width( 500 ) ),
+		text box( ns:metadata_aa["abouttext"] || "\!N", << set width( 500 ) ),
+		text box( "Current version: " || char( ns:metadata_aa["addinVersion"] ), << set width( 500 ) ),
+		text box( "Build Date: " || format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
+			padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) ),
+		text box( "ID: " || char( ns:metadata_aa["id"], << set width( 500 ) ) ),
+		text box( "Name in JMP: " || ns:metadata_aa["name"], << set width( 500 ) ),
+		text box( "Development Status: " || ns:metadata_aa["state"], << set width( 500 )	),
+		H list box(
+			Button Box("Close",
+				aboutwin << Close window();
+			),
+			<< Padding(
+				Left( 0 ),
+				Top( 20 ),
+				Right( 20 ),
+				Bottom( 0 )
+			)
+		),
+		<< Padding(
+			Left( 20 ),
+			Top( 0 ),
+			Right( 20 ),
+			Bottom( 20 )
+		)
+	);
+);
