@@ -505,17 +505,8 @@ BuildJSL = function( {}, {txt},
 		
 		
 		//List of tags
-		If ( !( cnformat == "tag") | cb_tagtonotes << Get,
-			"\!N\!N	oldcn = " || Char( oldcn ) || ";" ||
-			If( searchfield == "expression",
-				"\!N	oldcncorrected = {};" ||
-				"\!N	For( i = 1, i <= N Items( oldcn ), i++," ||
-				"\!N		oldcncorrected[i] = Substitute( oldcn[i], \!"''\!", \!"'\!" ) " ||
-				"\!N	);",
-				"\!N	oldcncorrected = oldcn;" 
-			),
-			""
-		) ||
+		"\!N\!N	oldcn = " || Char( oldcn ) || ";" ||
+		"\!N	oldcncorrected = oldcn;" ||
 		
 		//Change Column Names 
 		If ( !( cnformat == "tag"),
@@ -550,16 +541,16 @@ BuildJSL = function( {}, {txt},
 				"\!N		If( !Is Missing( cn )," ||
 				"\!N			pos = Min( Loc( " || If( cnformat == "tag", "oldcn", "newcn" ) || ", cn ) );" ||
 				"\!N			If( pos > 0," ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI tag\!", \!"" || oldcncorrected[pos] || "\!" );" ||
+				"\!N				Column( dtWide, i ) << Set Property( \!"PI tag\!", oldcncorrected[pos] );" ||
 				"\!N				Column( dtWide, i ) << Set Property( \!"PI Original Column Name\!", Column( dtWide, i ) << Get Name );" ||
 				"\!N				Column( dtWide, i ) << Set Property( \!"PI call type\!", \!"" || querytype || "\!" );" ||
 				"\!N				Column( dtWide, i ) << Set Property( \!"PI interval\!", \!"" || (TimeInterval << Get Text) || "\!" );" ||
 				If( N Items( Loc({"Average", "Count", "Max", "Min", "Population Standard Deviation", "Range", "Standard Deviation", "Totals"}, querytype) )>0, 
-					"\!N				Column( dtWide, i ) << Set Property( \!"PI step\!", \!"" || (TimeStep << Get Text) || "\!" );",
+					"\!N				Column( dtWide, i ) << Set Property( \!"PI step\!", \!"" || (TimeStep << Get Text) || "\!" );" ||
+					"\!N				Column( dtWide, i ) << Set Property( \!"PI interval start offset\!", \!"-" || (TimeStep << Get Text) || "\!" );" ||
+					"\!N				Column( dtWide, i ) << Set Property( \!"PI interval end offset\!", \!"\!" );",
 					""
 				) ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI interval start offset\!", \!"-" || (TimeStep << Get Text) || "\!" );" ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI interval end offset\!", \!"\!" );" ||
 				"\!N				Column( dtWide, i ) << Set Property( \!"PI DSN\!", \!"" || (Conn << Get Text) || "\!" );" ||
 				"\!N			);" ||
 				"\!N		);" ||
@@ -733,8 +724,8 @@ debug = 0;
 										UpdateOutput();
 									),
 								),
-								bbHelp( "Search for tag names, tag descriptions (for Point Info queries)" ||
-									"or for expressions (for supported Query Types).", HelpType = "stdradio" )
+								bbHelp( "Search for tag names or descriptions, only works for Point Info queries.", 
+									HelpType = "stdradio" )
 							),
 							
 							//List of Tags
@@ -996,7 +987,6 @@ exQueries = {
 		"Find PI Tags",
 		"Find PI tags matching a name.",
 		{
-			maxrows << Set Text( "1000000"),
 			rb_querytype << Set( 1 ),
 			rb_SearchField << Set( 1 ),
 			rb_matchtype << Set( 4 ),
@@ -1010,7 +1000,6 @@ exQueries = {
 		"Find PI Tags by Description",
 		"Find PI tags matching a description.",
 		{
-			maxrows << Set Text( "1000000"),
 			rb_querytype << Set( 1 ),
 			rb_SearchField << Set( 2 ),
 			rb_matchtype << Set( 4 ),
@@ -1025,7 +1014,6 @@ exQueries = {
 		"Return evenly-spaced values for a tag.",
 		{
 			//Conn << Set Text( "180 PI Archive" ),
-			maxrows << Set Text( "1000000"),
 			rb_querytype << Set( 4 ),		//Interpolated Values
 			TimeStart << Set Text( "t - 2d" ),
 			TimeEnd << Set Text( "*" ),
@@ -1046,7 +1034,6 @@ exQueries = {
 		"Return daily average values",
 		{
 			//Conn << Set Text( "180 PI Archive" ),
-			maxrows << Set Text( "1000000"),
 			rb_querytype << Set( 5 ),
 			TimeStart << Set Text( "t - 10d + 6h" ),
 			TimeEnd << Set Text( "t + 6h" ),

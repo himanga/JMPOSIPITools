@@ -3,7 +3,7 @@ Associative Array(
 		List( "abouttext", "Facilitates getting data from OSI/Aveva's PI Historian.
 
 Requires setup of PI ODBC, OLEDB, and DAS." ),
-		List( "addinVersion", 0.02 ),
+		List( "addinVersion", 0.03 ),
 		List( "author", "Isaac Himanga" ),
 		List( "buildDate", 3712255652 ),
 		List( "developer", "Isaac Himanga" ),

@@ -26,8 +26,7 @@ Include( ns:addinhome || "addinUserPref.jsl" );
 ns:DefaultPref = Associative Array({
 	{"PI_Server", "My PI Archive"},
 	{"Max_Rows", "10000"},
-	{"Open_Script_Windows", "no"},
-	{"Match_Type", "Contains"}
+	{"Open_Script_Windows", "no"}
 });
 
 //set preference types, descriptions, and value restrictions
@@ -46,11 +45,6 @@ ns:PrefInfo = Associative Array({
 		"Should SQL and JSL windows be open by default (yes/no)?",
 		"char",
 		{"yes", "no"}
-	}},
-	{"Match_Type", {
-		"Enter the default query type (Exact/Starts with/Ends with/Contains').",
-		"char",
-		{"Exact", "Starts with", "Ends with", "Contains"}
 	}}
 });
 
