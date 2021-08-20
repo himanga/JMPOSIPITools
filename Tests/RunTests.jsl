@@ -1,0 +1,17 @@
+﻿// About: Runs unit tests
+// Requires the jsl-hamcrest add-in
+// Initialize the add-in before running this
+
+Names Default To Here( 0 );
+
+// Group: Run tests
+// set the reporter
+//
+// Run Tests
+//
+// Show results
+//
+
+ut global reporter = ut data table reporter();
+ut include jsl files recursively( "UnitTests" );
+ut global reporter << New Data View;

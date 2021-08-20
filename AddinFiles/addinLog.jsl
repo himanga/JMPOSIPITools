@@ -1,0 +1,89 @@
+/* About: Default AddIn Logging Script
+
+Saves two functions to the add-in namespace to write messages to a log file
+
+Inspired by John Moore from JMP Discovery 2016
+
+Section: Globals
+*/
+
+Names default to here( 1 );
+
+// About: Customize this file
+// Set this to the add-in ID
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+// About: get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+);
+
+// Function: logusage
+// 
+/* 
+	Function: logusage
+		---Prototype---
+		logusage( String, 0|1|milling )
+		---------------
+		Write a message to a local temporary file
+
+	Arguments:
+		logmessage - Message to log.
+		allowupload - Set to zero to prevent upload of comment right now
+		
+					  Use this to keep execution fast within loops.
+
+	Example:
+		> logusage( "Script completed without error." );
+		
+	Note:
+		
+*/
+ns:logusage = Function( {logmessage, allowupload = 1},
+	r = 0;
+	try(
+		
+		logtime = Today();
+		
+		//get info about the session, store it in a tab delineated string
+		logentry = MDYHMS( logtime ) || "\!t" ||
+			Get Environment Variable( "USERNAME" ) || "\!t" ||
+			Get Environment Variable( "USERDOMAIN" ) || "\!t" ||
+			Get Environment Variable( "COMPUTERNAME" ) || "\!t" ||
+			Get Environment Variable( "LOGONSERVER" ) || "\!t" ||
+			Get Environment Variable( "NUMBER_OF_PROCESSORS" ) || "\!t" ||
+			Get Environment Variable( "OS" ) || "\!t" ||
+			Get Environment Variable( "USERDNSDOMAIN" ) || "\!t" ||
+			ns:metadata_aa["id"] || "\!t" ||
+			ns:metadata_aa["name"] || "\!t" ||
+			char( ns:metadata_aa["addinVersion"] ) || "\!t" ||
+			char( jmpversion() ) || "\!t" ||
+			logmessage;
+		
+		//Set log file location
+		// About: Set path for user preferences
+		logfilepath = Convert file path( "$USER_APPDATA" );
+		logfilepath = Regex( logfilepath, "(.*?/)(SAS/)?JMP[^/]*/[^/]+/", "\1") || 
+			"JMP AddIn " || thisAddIn || "/";
+		logfile = logfilepath || "log.jsl";
+		
+		If( !Directory Exists( logfilepath ),
+			Create Directory( logfilepath );
+		);
+	
+		//create a new log file with a header if the file does not exist
+		If( ! File Exists( logfile ),
+			headerentry = "time\!tusername\!tuserdomain\!tcomputername\!tlogonserver\!t" ||
+				"numberofprocessors\!tos\!tuserdnsdomain\!taddinid\!taddinname\!tversion\!tjmpversion\!tmessage";
+			Save Text File( logfile, headerentry, Mode( "replace" ) );
+		);
+		
+		//save the log entry
+		Save Text File( logfile, "\!N" || logentry, Mode( "append" ) );
+		
+		r = 1;
+	);
+	return(r);
+);

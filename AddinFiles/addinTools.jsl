@@ -5,9 +5,9 @@ thisAddIn = "com.github.himanga.JMPOSIPITools";
 
 //get or make namespace for this add-in
 If( 
-	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
-	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
-	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 );
 
 

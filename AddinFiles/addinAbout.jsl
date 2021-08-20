@@ -1,21 +1,37 @@
+/* About: This File
+Show information about the script including the name, development
+status, version, last build date, and other info.
+
+Section: Globals
+*/
+
 Names default to here( 1 );
 
+// About: Customize this file
+// Set this to the add-in ID
 thisAddIn = "com.github.himanga.JMPOSIPITools";
 
-//get or make namespace for this add-in
+// About: get or make namespace for this add-in
 If( 
-	!Namespace Exists( Eval( thisAddIn ) || "addinnamespace" ),
-	ns = New Namespace( Eval( thisAddIn ) || "addinnamespace" ),
-	ns = Namespace( Eval( thisAddIn ) || "addinnamespace" )
+	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+	//reload the add-in
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" );
+	ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
+	Include( ns:addinhome || "addinLoad.jsl" );,
+	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 );
 
-//add a zero before single digit numbers, return text
+ns:logusage( "About" );
+
+// Function: padnum
+// Add a zero before single digit numbers, return text.
 padnum = function( {x},
 	if( x < 10, "0", "" ) || char(x);
 );
 
-//the about window
-aboutwin = new window( "About",
+// Routine: About Window
+// Shows info about this function
+Eval( Eval Expr( aboutwin = new window( "About",
 	v list box(
 		text box( ns:metadata_aa["name"], << set width( 500 );, << Set font size( 24 ); ),
 		text box( <<set width( 500 ) ),
@@ -28,6 +44,12 @@ aboutwin = new window( "About",
 		text box( "ID: " || char( ns:metadata_aa["id"], << set width( 500 ) ) ),
 		text box( "Name in JMP: " || ns:metadata_aa["name"], << set width( 500 ) ),
 		text box( "Development Status: " || ns:metadata_aa["state"], << set width( 500 )	),
+		spacer box( 100, 100 ),
+		bb = Button Box( "Open Documentation",
+			Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt" ), JMP window ),
+			<< Style(Underline)
+		),
+		spacer box( 10, 10 ),
 		H list box(
 			Button Box("Close",
 				aboutwin << Close window();
@@ -46,4 +68,4 @@ aboutwin = new window( "About",
 			Bottom( 20 )
 		)
 	);
-);
+) ) ); 

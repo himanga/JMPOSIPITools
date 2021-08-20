@@ -1,0 +1,10 @@
+﻿// About: Loads the add-in and runs unit tests
+// calls <RunTests.jsl>, and specifically 
+// Initialize the JSL Hamcrest add-in before running this
+
+If(Is Empty(ut addin home), ut addin home = Convert File Path("../"));
+If(Is Empty(ut addin scratch), ut addin scratch = Get Path Variable("TEMP"));
+
+Include( "../AddinFiles/addinLoad.jsl" );
+
+Include( "RunTests.jsl" );

@@ -1,0 +1,1 @@
+Natural Docs will output HTML files to this directory.
