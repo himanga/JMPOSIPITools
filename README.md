@@ -35,3 +35,5 @@ About: Steps
 - Commit changes in git and push commits to github.
 - Open a pull request on github
 
+## Contributors
+- [Predictum Inc.](https://predictum.com/)

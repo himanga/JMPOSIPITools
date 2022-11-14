@@ -1,7 +1,6 @@
 ﻿/* About: Get OSI PI Data
 
-Get data from PI Servers, requires prior set up of PI DAX, OLE-DB and ODBC
-and odbc connections.
+Get data from PI Web API. Requires version 2021 SP3 or higher of the PI Web API.
 
 Section: Globals
 */
@@ -20,6 +19,7 @@ If(
 );
 ns:logusage( "Get PI Data" );
 
+
 //Standard box to display description for each input
 tbDesc = Function( {descmsg, helpmsg, wdth = 100},
 	Eval( Eval Expr(  VCenter Box( 
@@ -32,14 +32,13 @@ tbDesc = Function( {descmsg, helpmsg, wdth = 100},
 );
 
 //Standard box to get text info from the user
-tebText = Function( {initval, varname, helpmsg = "", wdth = 150, nlines = 1,
+tebText = Function( {initval, varname, helpmsg = "", wdth = 150,
 		fn = function( {this}, UpdateOutput(); ) },
 	centeredbox = Eval( (  VCenter Box( 
 		tbtemp = Text Edit Box(
 			initval,
 			<< Justify Text( Left ),
 			<< Set Width( wdth ),
-			<< setNlines( nlines ),
 			<< SetFunction( fn ),
 			<< Set Tip( helpmsg )
 		),
@@ -76,7 +75,8 @@ sbDefault = Function( {}, Spacer Box( Size( 3, 3 ) ) );
 
 //Standard line for text input
 stdtxtInput = Function( { varname, descmsg, initval, helpmsg, nlines = 1, descwidth = 100,
-	fn = function( {this}, UpdateOutput(); ) },
+		fn = function( {this}, UpdateOutput(); ) },
+
 	Eval( Eval Expr(
 		H List Box(
 			tbDesc( Expr( descmsg ), helpmsg ),
@@ -111,7 +111,7 @@ DefaultTableFormat = function( {},
 );
 
 SizeTextBoxes = function( {},
-	boxes = { {TagList, TagListsb}, {SQLin, SQLinsb}};
+	boxes = { {TagList, TagListsb} };
 	for(i = 1, i <= N Items(boxes), i++,
 		Eval( Eval Expr( 
 			tbtmp = Text Box( Expr( boxes[i][1] ) << Get Text, set wrap( Expr( boxes[i][1] ) << Get Wrap), set width( Expr( boxes[i][1] ) << Get Width ), hide(0)); 
@@ -128,17 +128,7 @@ SizeTextBoxes = function( {},
 	
 );
 
-//function to set up searchfield to allow or disallow expressions
-allowExpr = function( {allowed},
-	Prevval = rb_searchfield << Get;
-	If( allowed == 1,
-		rb_searchfield << Set Items( {"tag", "descriptor", "expression"} ),
-		rb_searchfield << Set Items( {"tag", "descriptor"} )
-	);
-	rb_searchfield << Set ( Prevval );
-);
-
-//Set text boxes with SQL and JSL
+// Set textbox with JSL
 UpdateOutput = function( {},
 	
 	if( DisableUpdate == 1, return());
@@ -152,7 +142,7 @@ UpdateOutput = function( {},
 	);
 
 	querytype = rb_querytype << Get Selected;
-	
+	calctype = rb_calctype << Get Selected;
 	searchfield = rb_SearchField << Get Selected;
 	
 	//Show or hide time options
@@ -165,7 +155,7 @@ UpdateOutput = function( {},
 		lb_matchtype << Visibility("visible");
 		rb_tblformat << Set( 1 );
 		lb_longwide << Visibility("collapse");
-		allowExpr( 0 ),
+	,
 	
 		querytype == "Snapshot Values",
 		querytimes << Visibility("collapse");
@@ -176,7 +166,7 @@ UpdateOutput = function( {},
 		lb_matchtype << Visibility("visible");
 		rb_tblformat << Set( 1 );
 		lb_longwide << Visibility("collapse");
-		allowExpr( 0 ),
+	,
 		
 		querytype == "All Archived Values",
 		querytimes << Visibility("visible");
@@ -186,7 +176,7 @@ UpdateOutput = function( {},
 		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
-		allowExpr( 0 ),
+	,
 		
 		querytype == "Interpolated Values",
 		querytimes << Visibility("visible");
@@ -196,7 +186,7 @@ UpdateOutput = function( {},
 		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
-		allowExpr( 1 ),
+	,
 		/*
 		querytype == "Calculated Expression",
 		querytimes << Visibility("visible");
@@ -210,28 +200,39 @@ UpdateOutput = function( {},
 		*/
 		querytimes << Visibility("visible");
 		lb_intervaltime << Visibility("visible");
-		lb_steptime << Visibility("visible");
+		// Separate step time only allowed for TimeWeighted basis
+		if(calctype == "TimeWeighted",
+			lb_steptime << Visibility("visible")
+		,
+			TimeStep << Set Text (TimeInterval << Get Text);
+			lb_steptime << Visibility("collapse")
+		);
 		lb_CalcBasis << Visibility("visible");
 		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
-		allowExpr( 1 ),
 	);
-	
+
 	//If step and interval times are linked, update the interval time
 	If( ( SeparateInterval << Get ) == 1,
-		lb_steptimesub << Visibility("visible");,
+		lb_steptimesub << Visibility("visible");
+	,
 		lb_steptimesub << Visibility("collapse");
 		TimeStep << Set Text( TimeInterval  << Get Text );
 	);
-
-	SQLin << set text( BuildSQL() );
 	
-	JSLout << set text( BuildJSL() );
+	JSLout << set text( Char(BuildJSL()) );
+	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
+	wasOpen = obJSLScript << GetOpen;
+	obJSLScript << setopen(1);
+	JSLout << Reformat;
+	obJSLScript << setopen(wasOpen);
 	
-	If( searchfield == "expression",
-		tb_tagnameshead << Set Text( "Expressions" );
-		lb_matchtype << Visibility("collapse"),
+	If( searchfield == "webID",
+		lb_matchtype << set(1); // Exact matches only
+		tb_tagnameshead << Set Text( "Web IDs" );
+		lb_matchtype << Visibility("collapse")
+	,
 		tb_tagnameshead << Set Text( "Tag Names" );
 		lb_matchtype << Visibility("visible")
 	);
@@ -254,331 +255,192 @@ FieldFromLine = function( {field, line}, {r, rx},
 	return(r);
 );
 
-//SQL statement
-BuildSQL = function({},
-	rsql = "";
-	
-	taglisttxt = Char(TagList << Get Text );
-	txt = taglisttxt || "\!N";
-	
-	//If an expression, then join multiple single calls together, otherwise just call BuildSQLTags.
-	If(
-		(rb_searchfield << Get selected) == "expression"
-	,
-		for ( tg = 1, Contains( txt, "\!N" ) & tg < 100000, tg++,
-			if( Contains( txt, "\!N" ) > 1,
-				if(tg > 1, rsql = rsql || "\!NUNION ALL\!N" );
-				tmptxt = FieldFromLine( "tag", txt );
-				rsql = rsql || BuildSQLTags( tmptxt );
-			);
-		
-			txt = substr( txt, Contains( txt, "\!N") + 2, length(txt) );
-			
-		);
-	,
-		rsql = BuildSQLTags(taglisttxt);
-	);
-	
-	return(rsql);
-);
-
-//Create sql statement for tag or description queries, or a single expression query
-BuildSQLTags = function( {taglisttxt}, {txt},
-	
-	querytype = rb_querytype << Get Selected;
-	
-	searchfield = rb_SearchField << Get Selected;
-	
-	if (//Point Info
-		querytype == "Point Info",
-		SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || " tag, descriptor, engunits, *" /*" tag, descriptor, engunits, pointtypex, pointsource, 
-			archiving, changedate, changer, compdev, compdevpercent, compmax, 
-			compmin, compressing, convers, creationdate, creator, dataaccess, datagroup, 
-			dataowner, dignumber, digstartcode, displaydigits,  
-			excdev, excdevpercent, excmax, excmin, exdesc, filtercode, instrumenttag, 
-			location1, location2, location3, location4, location5, pointaccess, 
-			pointclass, pointgroup, pointid, pointnumber, pointowner, 
-			pointtype, recordtype, res, scan, shutdown, sourcetag, span, 
-			squareroot, step, totalcode, typicalvalue, userint1, userint2, 
-			userreal1, userreal2, zero " */ ||
-		"\!NFROM [pipoint]..[pipoint]" ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) || ")",
-		
-		//Snapshot Values
-		querytype == "Snapshot Values",
-		SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || " tag, time, value, svalue, DIGSTRING(status) status" ||
-		"\!NFROM piarchive..picomp" ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) ||
-		")\!N	AND time = '*'";,
-		
-		//Archived Values
-		querytype == "All Archived Values",
-		SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || " tag, time, value, svalue, DIGSTRING(status) status" ||
-		"\!NFROM piarchive..picomp" ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) ||
-		")\!N	AND time >= '" || char(TimeStart << Get Text) || 
-		"' AND time <= '" || char(TimeEnd << Get Text) || "'";,
-		
-		//Interpolated values
-		querytype == "Interpolated Values",
-		SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || 
-		If( 
-			searchfield == "expression", 
-			" expr, time, CAST( value AS Float64 ) as value", 
-			" tag, time, value, svalue, DIGSTRING(status) status"
-		) ||
-		"\!NFROM piarchive.." || If( searchfield == "expression", "picalc", "piinterp" ) ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) ||
-		")\!N	AND time BETWEEN '" || char(TimeStart << Get Text) || 
-		"' AND '" || char(TimeEnd << Get Text) || 
-		"' AND timestep = '" || char(TimeStep << Get Text) || "'";,
-		/*
-		//Calculated Expression
-		querytype == "Calculated Expression",
-		SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || " expr, time, CAST( value AS Float64 ) as value" ||
-		"\!NFROM piarchive..picalc" ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) ||
-		")\!N	AND time BETWEEN '" || char(TimeStart << Get Text) || 
-		"' AND '" || char(TimeEnd << Get Text) || 
-		"' AND timestep = '" || char(TimeStep << Get Text) || "'";,
-		*/
-		//Calculated values: Average
-		querytype == "Average",
-		SQLtext = AggregateSQL("piavg", taglisttxt),
-		
-		//Calculated values: count
-		querytype == "Count",
-		SQLtext = AggregateSQL("picount", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Max",
-		SQLtext = AggregateSQL("pimax", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Mean",
-		SQLtext = AggregateSQL("pimean", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Min",
-		SQLtext = AggregateSQL("pimin", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Population Standard Deviation",
-		SQLtext = AggregateSQL("pipstd", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Range",
-		SQLtext = AggregateSQL("pirange"),
-		
-		//Calculated values: max
-		querytype == "Standard Deviation",
-		SQLtext = AggregateSQL("pistd", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Totals",
-		SQLtext = AggregateSQL("pitotal", taglisttxt),
-		
-		//Calculated values: max
-		querytype == "Calculated Expression",
-		SQLtext = AggregateSQL("picalc", taglisttxt)
-		
-	);
-	
-	Return( SQLtext );
-);
-
-//SQL statement for all aggregate functions such as min, max, average, etc
-AggregateSQL = function({tblName, taglisttxt}, {txt},
-	SQLtext = "SELECT TOP " || char(MaxRows << Get Text) || " *" ||
-		"\!NFROM piarchive.." || char(tblName) ||
-		"\!NWHERE (" || BuildTagList(taglisttxt) ||
-		")\!N	AND " ||
-		if( TimeStep == "", 
-			//No timestep - standard call
-			"time BETWEEN '" || char(TimeStart << Get Text) || 
-			"' AND '" || char(TimeEnd << Get Text) || 
-			"' AND timestep = '" || char(TimeInterval << Get Text) || "'",
-			
-			//With timestep - call as a list of times
-			"time IN(SELECT time FROM piarchive..piinterp2 " ||
-			"WHERE tag = 'sinusoid'" ||
-			"AND time BETWEEN '" || char(TimeStart << Get Text) || 
-			"' AND '" || char(TimeEnd << Get Text) || 
-			"' AND timestep = '" || char(TimeStep << Get Text) ||
-			"') AND timestep = '" || char(TimeInterval << Get Text) || "'"
-		) ||
-			
-		" AND calcbasis = '" || char(rb_calctype << Get Selected) || "'";
-		
-	Return( SQLtext );
-);
-
-//Create the part of the SQL statement containing tag names
-BuildTagList = function ( {taglisttxt}, {txt},
-	querytype = rb_querytype << Get Selected;
-	
-	searchfield = rb_SearchField << Get Selected;
-	
-	If( searchfield == "expression", searchfield = "expr" );
-	
-	txt = taglisttxt || "\!N";
-	
-	tags = "";
-	
-	for ( tg = 1, Contains( txt, "\!N" ) & tg < 100000, tg++,
-		if( Contains( txt, "\!N" ) > 1,
-			If( !Is Missing( FieldFromLine( "tag", txt ) ), 
-				//create an 'in' statement if looking for an exact match, otherwise a like statement
-				if( (rb_matchtype << get selected) == "Exact",
-					tags = tags || if ( tg == 1, searchfield || " IN (", ",") || "'";,
-					tags = tags || if ( tg == 1, searchfield || " LIKE ", " OR " || searchfield || " LIKE ") || "'";
-				);
-				
-				//enclose tag in single quotes
-				tags = tags ||
-					if( Contains Item( "Ends with,Contains", two_rb = (rb_matchtype << get selected), "," ) == 1, "%", "") || 
-					FieldFromLine( "tag", txt ) ||
-					if( Contains Item( "Starts with,Contains", two_rb = (rb_matchtype << get selected), "," ) == 1, "%", "") || "'";
-			)
-		);
-		
-		txt = substr( txt, Contains( txt, "\!N") + 2, length(txt) );
-	);
-	
-	//add closing ')' if creating an 'in' statement
-	if( (rb_matchtype << get selected) == "Exact",
-		tags = tags || ")";,
-	);
-	
-	Return(tags);
-);
 
 //Create JSL script from options on the form.
 BuildJSL = function( {}, {txt},
 
+	// Get inputs
+	serverName = Server << GetText;
 	querytype = rb_querytype << Get Selected;
-	
 	searchfield = rb_SearchField << Get Selected;
-	
 	cnformat = cb_cnformat << Get Selected;
+	matchType = rb_matchtype << Get Selected;
+	searchStrings = Words( TagList << Get Text, "\!N");
+	calculationBasis = rb_calctype << GetSelected;
+	startTime = TimeStart << GetText;
+	endTime = TimeEnd << GetText;
+	intervalTime = TimeInterval << GetText;
+	If(SeparateInterval << Get(1) == 0,
+		// Use the interval as the time step if there is no separate interval
+		stepTime = intervalTime
+	,
+		stepTime = TimeStep << GetText
+	);
+	TableFormat = rb_tblformat << getSelected;
 	
-	oldcn = ns:map( Words( TagList << Get Text, "\!N"),
+	oldcn = ns:map(searchStrings,
 		function( {x}, Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) ) )
 	);
 	
-	newcn = ns:map( Words( TagList << Get Text, "\!N"),
+	newcn = ns:map(searchStrings,
 		function( {x}, FieldFromLine( cnformat, x || "\!N" ) )
 	);
 	
-	taggroups = ns:map( Words( TagList << Get Text, "\!N"),
+	taggroups = ns:map(searchStrings,
 		function( {x}, FieldFromLine( "group", x || "\!N" ) )
 	);
-	
+
 	ColToSplit = If( 
-		(querytype == "Interpolated Values" |
-		querytype == "All Archived Values") & !( searchfield == "expression" ), 
-		
-		"Split( :value, :svalue, :status )",
-		"Split( :value )";
+		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
+		{:value, :svalue, :status},
+		{:value}
 	);
-		
-	NewTblExpr = Eval Insert( 
-	
-		"Names default to here(1);" ||
-		
-		"\!N\!Ntry(" ||
-		
-		//Get data in long format
-		"\!N	dtLong = Open Database( \!"DSN=^Conn << Get Text^\!"," ||
-		"\!N		\!"^SQLin << Get Text^\!"" ||
-		"\!N	);" ||
-		
-		"\!N\!N	if(try(if(nrow(dtLong)>0,1,0),0)==0, throw(\!"No data returned\!"));" ||
-		
-		//Warning if too many rows returned
-		"\!N\!N	//Check for too many characters" ||
-		"\!N	If( N row( dtLong ) >= ^char(MaxRows << Get Text)^," ||
-			"\!N		New Window(\!N			\!"Max Rows Exceeded\!",\!N			Modal,\!N		" ||
-			"	Text Box( \!"Met or exceeded the maximum number of rows for \!" ||" ||
-			"\!N				\!"this query. Increase the allowed maxrows or restrict the query. \!" ||" ||
-			"\!N				\!"Some results might be missing.\!"\!N			)\!N		)\!N	);" ||
-		
-		
-		//List of tags
-		"\!N\!N	oldcn = " || Char( oldcn ) || ";" ||
-		"\!N	oldcncorrected = oldcn;" ||
-		
+
+	// Insert all JSL needed to produce the intended table into this Glue expression
+	NewTblExpr = EvalExpr(Glue(
+		NamesDefaultToHere(1);
+		// Requires the addin's namespace
+		nsName = "com.github.himanga.JMPOSIPITools.addinnamespace";
+		If(!Namespace Exists(nsName),
+			ns = New Namespace(nsName),
+			ns = Namespace(nsName)
+		);
+		// Base URL to be used by all requests
+		ns:baseURL = expr(tb_BaseURL << getText);
+		// Max number if items returned used by all requests
+		ns:maxRows = expr(num(tb_maxrows << getText));
+		// Use the minumum of the user specified maxRows and the API Row limit as the number of rows to pull in a single request
+		ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
+		// Gets the data server's web ID based on the user's preferences
+		serverid = ns:DataServerIdRequest(expr(serverName));
+	));
+
+	// Get pointIDs
+	If(searchField == "webID",
+		InsertInto(NewTblExpr,
+			evalExpr(pointIDs = expr(searchStrings))
+		)
+	,//else, need to request pointIDs
+		InsertInto(NewTblExpr,
+			evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(oldcn), expr(searchfield), expr(matchType)))
+		)
+	);
+
+	// Call a Table function depending on the query type
+	tableRequestExpr = Match(querytype,
+		"Point Info",
+			Expr(dtLong = ns:GetPointAttributesTable(pointIDs)),
+		"Snapshot Values",
+			Expr(dtLong = ns:GetSnapshotValuesTable(pointIDs)),
+		"All Archived Values",
+			EvalExpr(dtLong = ns:GetArchiveValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime))),
+		"Interpolated Values",
+			EvalExpr(dtLong = ns:GetInterpolatedValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime), Expr(intervalTime))),
+		"Average",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Average", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Count",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Count", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Max",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Maximum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Min",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Minimum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Population Standard Deviation",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "PopulationStdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Range",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Range", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Standard Deviation",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "StdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Totals",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Total", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		throw("Unknown query type")
+	);
+	InsertInto(NewTblExpr, NameExpr(tableRequestExpr));
+
+	// Check if user's Max Rows is exceeded. For Point Info and Snapshot Value compare to row count.
+	// For other queries compare to the most data for any one tag pulled.
+	InsertInto(NewTblExpr, EvalExpr(
+		if(!contains({"Point Info", "Snapshot Values"}, expr(querytype)),
+			dtCount = dtLong << summary(group(:tag), "private");
+			rowCount = colMax(column(dtCount, "N Rows"));
+			close(dtCount, "nosave");
+		,
+			rowCount = nRows(dtLong)
+		);
+		if(rowCount >= ns:maxRows,
+			NewWindow("Max Rows Exceeded", <<modal,
+				TextBox(
+					"Met or exceeded the maximum number of rows (" || char(ns:maxRows) ||
+					") for this query. Increase the allowed maxrows or restrict the query. "||
+					" Some results might be missing."
+				)
+			);
+			dtLong << BringWindowToFront;
+		);
+		oldcn = expr(oldcn);
+		oldcncorrected = oldcn;
+	));
+
+	If(cnformat != "tag",
 		//Change Column Names 
-		If ( !( cnformat == "tag"),
-			"\!N\!N	//Change tag or column names" ||
-			"\!N\!N	newcn = " || Char( newcn ) || ";" ||
-			"\!N\!N	For( i = 1, i <= N Rows( dtLong ), i++," ||
-			"\!N		pos = Min( Loc( oldcncorrected, Uppercase( Column( dtLong, \!"" || If( searchfield == "expression", "expr", "tag" ) || "\!" )[i]) ) );" ||
-			"\!N		If( pos > 0," ||
-			"\!N			Column( dtLong, \!"" || If( searchfield == "expression", "expr", "tag" ) || "\!" )[i] = newcn[pos]" ||
-			"\!N		)" ||
-			"\!N	);",
-			""
-		) ||
-		
-		//Convert to wide format
-		If ( TableFormat == "Wide" ,
-			"\!N\!N	//Convert to wide format" ||
-			"\!N	dtWide = dtLong << Split(" ||
-			"\!N		Split By( " || If( searchfield == "expression", ":expr", ":tag" ) || " )," ||
-			"\!N		^ColToSplit^," ||
-			"\!N		Group( :time ),"||
-			"\!N		Remaining Columns( Drop All )," ||
-			"\!N		Sort by Column Property" ||
-			"\!N	);" ||
-			"\!N	dtLong << Close Window;" ||
-		
-			//Add tag names to notes attribute of column
-			If( cb_tagtonotes << Get,
-				"\!N\!N	//Save tag names to columns. " ||
-				"\!N	For( i = 1, i <= N Cols( dtWide ), i++," ||
-				"\!N		cn = Regex( Column( dtWide, i ) << Get Name, \!"((value )|(svalue )|(status ))?(.*)\!", \!"\5\!" );" ||
-				"\!N		If( !Is Missing( cn )," ||
-				"\!N			pos = Min( Loc( " || If( cnformat == "tag", "oldcn", "newcn" ) || ", cn ) );" ||
-				"\!N			If( pos > 0," ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI tag\!", oldcncorrected[pos] );" ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI Original Column Name\!", Column( dtWide, i ) << Get Name );" ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI call type\!", \!"" || querytype || "\!" );" ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI interval\!", \!"" || (TimeInterval << Get Text) || "\!" );" ||
-				If( N Items( Loc({"Average", "Count", "Max", "Min", "Population Standard Deviation", "Range", "Standard Deviation", "Totals"}, querytype) )>0, 
-					"\!N				Column( dtWide, i ) << Set Property( \!"PI step\!", \!"" || (TimeStep << Get Text) || "\!" );" ||
-					"\!N				Column( dtWide, i ) << Set Property( \!"PI interval start offset\!", \!"-" || (TimeStep << Get Text) || "\!" );" ||
-					"\!N				Column( dtWide, i ) << Set Property( \!"PI interval end offset\!", \!"\!" );",
-					""
-				) ||
-				"\!N				Column( dtWide, i ) << Set Property( \!"PI DSN\!", \!"" || (Conn << Get Text) || "\!" );" ||
-				"\!N			);" ||
-				"\!N		);" ||
-				"\!N	);",
-				""
+		InsertInto(NewTblExpr, EvalExpr(
+			newcn = expr(newcn);
+			For( i = 1, i <= N Rows( dtLong ), i++,
+				pos = Min( Loc( oldcncorrected, Uppercase( Column( dtLong, "tag" )[i]) ) );
+				If( pos > 0,
+					Column( dtLong, "tag" )[i] = newcn[pos]
+				)
 			)
-			,
-			""
-		) ||
-			
-		"\!N," ||
-		"\!N	throw(\!"Error getting data.  Details: \!" || char( exception_msg ) )" ||
-		"\!N);";
+		))
 	);
-					
-	Return( NewTblExpr );
+
+	If( TableFormat == "Wide",
+		// Make wide table
+		InsertInto(NewTblExpr, EvalExpr(
+			tableName = dtLong << getName;
+			dtWide = dtLong << Split(
+				Split By( :tag ),
+				Split( expr(ColToSplit) ),
+				Group( :time ),
+				Remaining Columns( Drop All ),
+				Sort by Column Property
+			);
+			close(dtLong, "nosave");
+			dtWide << setName(tableName);
+		));
+		If(cb_tagtonotes << Get,
+			// Save column properties
+			InsertInto(NewTblExpr, EvalExpr(
+				For( i = 1, i <= N Cols( dtWide ), i++,
+					cn = Regex( Column( dtWide, i ) << Get Name, "((value )|(svalue )|(status ))?(.*)", "\5" );
+					If( !Is Missing( cn ),
+						pos = Min( Loc( oldcn, cn ) );
+						If( pos > 0,
+							Column( dtWide, i ) << Set Property( "PI tag", oldcncorrected[pos] );
+							Column( dtWide, i ) << Set Property( "PI Original Column Name", Column( dtWide, i ) << Get Name );
+							Column( dtWide, i ) << Set Property( "PI call type", expr(querytype) );
+							Column( dtWide, i ) << Set Property( "PI interval", expr(intervalTime) );
+							Column( dtWide, i ) << Set Property( "PI Server", expr(serverName) );
+							If( contains({"Average", "Count", "Max", "Min", "Population Standard Deviation", "Range", "Standard Deviation", "Totals"}, expr(querytype)), 
+								Column( dtWide, i ) << Set Property( "PI step", expr(stepTime));
+								Column( dtWide, i ) << Set Property( "PI interval start offset", "-" || expr(stepTime));
+								Column( dtWide, i ) << Set Property( "PI interval end offset", "");
+							)
+						);
+					);
+				)
+			))
+		)
+	);
+	Return( NameExpr(NewTblExpr) );
 );
 
-
-//Reference current table
-dt1 = Current Data Table();
 
 //flag to output a bunch of status info to the log file
 debug = 0;
 
 //window box, all code is inside this box
 
-	nw = New Window( "PI Tag ODBC Query Builder",
+	nw = New Window( "PI Web API Query Builder",
 
 		//box to hold spacers on left and right side of data
 		H List Box ( 
@@ -595,26 +457,36 @@ debug = 0;
 				
 					V List Box(
 						
-						//PI ODBC Connection Name
+						//PI Server Name
 						sbDefault(), 
 						
-						stdtxtInput( varname = "Conn",
-							descmsg = "Connection Name", initval = ns:UserPref["PI_Server"], 
-							helpmsg = "Enter the name of an existing ODBC connection on this computer." ||
+						stdtxtInput( varname = "Server",
+							descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
+							helpmsg = "Enter the name of the PI Web Server." ||
 								"\!N\!NChange the default value using the User Preferences below." ),
+
+						//PI Web API Base URL
+						sbDefault(),
+
+						hlbURL = stdtxtInput( varname = "tb_BaseURL",
+							descmsg = "Web API Base URL", initval = ns:UserPref["Base_Url"], 
+							helpmsg = "Enter the base URL to access the PI Web API." ||
+								"\!N\!NChange the default value using the User Preferences below." );
+						hlbURL[TextEditBox(1)] << setWidth(250);
+						hlbURL,
 						
 						//Max number of values
 						sbDefault(),  
 						
-						stdtxtInput( varname = "maxrows",
+						stdtxtInput( varname = "tb_maxrows",
 							descmsg = "Max rows", 
 							initval = ns:UserPref["Max_Rows"], 
-							helpmsg = "Enter the maximum number of values to return." ),
+							helpmsg = "Enter the maximum number of values to return per tag." ),
 						
 						//radio buttons to choose the type of query
 						panelbox("Query Types",
 							rb_querytype = radio box({ "Point Info", "Snapshot Values", "All Archived Values", 
-								"Interpolated Values", "Average", "Count", "Max", "Mean", "Min", 
+								"Interpolated Values", "Average", "Count", "Max", "Min", 
 								"Population Standard Deviation", "Range", "Standard Deviation", "Totals"},
 								DefaultTableFormat();
 								UpdateOutput();
@@ -720,11 +592,11 @@ debug = 0;
 							//radio buttons to choose whether to search for tag or description
 							lb_searchfield = H List Box(
 								panelbox("Search Field",
-									rb_SearchField = radio box({ "tag", "descriptor"},
+									rb_SearchField = radio box({ "tag", "descriptor", "webID"},
 										UpdateOutput();
 									),
 								),
-								bbHelp( "Search for tag names or descriptions, only works for Point Info queries.", 
+								bbHelp( "Search for tag names, descriptions, or point webIDs.", 
 									HelpType = "stdradio" )
 							),
 							
@@ -866,47 +738,17 @@ debug = 0;
 							)
 						),
 						
-						
-						
 						V list box(
-							//SQL
-							obSQLQuery = Outline Box( "SQL Statement",
-								SQLinsb = Scroll Box( flexible(1),
-									SQLin = Text Edit Box(
-										"",
-										<< Justify Text( Left ),
-										<< Set Width( 300 ),
-										<< setNlines( 10 ),
-										<< set wrap( 2000 ),
-										<< SetFunction( function( {this},
-											SizeTextBoxes();
-											JSLout << set text( BuildJSL() );
-										) )
-									)
-								),
-								<< close;
-								<< outlinecloseorientation( "Vertical" )
-							),
-							Spacer Box( Size( 2, 2 ) ),
-							bbHelp( "This SQL statement is updated to reflect changes in the options in this window." ||
-								"\!N\!NYou can modify the text in this box and then run a query but your changes " ||
-								"will be overwritten the next time any value in the window is changed (except the script, below).",
-								HelpType = "stdoutline"
-							),
-							
-							Spacer Box( Size( 12, 48 ) ),
-							
 							//JSL
 							obJSLScript = Outline Box( "JSL to Run Query",
 								JSLout = Script Box(
-									"", 300, 400
+									"", 750, 400
 								),
 								<< close;
 								<< outlinecloseorientation( "Vertical" )
 							),
 							Spacer Box( Size( 2, 2 ) ),
-							bbHelp( "This script updated to reflect changes in the options in this window," ||
-								"including the SQL statement above. " ||
+							bbHelp( "This script is updated to reflect changes in the options in this window." ||
 								"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
 								"will be overwritten the next time any other value in the window is changed.",
 								HelpType = "stdoutline"
@@ -982,6 +824,7 @@ debug = 0;
 ; //end of window box
 
 
+// Example Queries to load
 exQueries = {
 	{
 		"Find PI Tags",
@@ -1013,7 +856,6 @@ exQueries = {
 		"Interpolated Values",
 		"Return evenly-spaced values for a tag.",
 		{
-			//Conn << Set Text( "180 PI Archive" ),
 			rb_querytype << Set( 4 ),		//Interpolated Values
 			TimeStart << Set Text( "t - 2d" ),
 			TimeEnd << Set Text( "*" ),
@@ -1033,7 +875,6 @@ exQueries = {
 		"Average Value",
 		"Return daily average values",
 		{
-			//Conn << Set Text( "180 PI Archive" ),
 			rb_querytype << Set( 5 ),
 			TimeStart << Set Text( "t - 10d + 6h" ),
 			TimeEnd << Set Text( "t + 6h" ),
@@ -1084,7 +925,6 @@ UpdateOutput();
 
 //Open script windows if user pref is set
 If( ns:UserPref["Open_Script_Windows"] == "yes",
-	obSQLQuery << Set Open;
 	obJSLScript << Set Open;
 );
 
