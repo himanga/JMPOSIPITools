@@ -9,3 +9,4 @@ TestAddinHome/**
 /Tests/Results/**
 *.jmpaddin
 *.zip
+*.bak
