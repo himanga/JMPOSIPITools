@@ -5,9 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [HEAD]
 
 ### Added
-
+- Build using powershell.
 ### Changed
-
+- Connects to PI via the PI's Web API insead of via DAS.
+- User can save a list of connections in preferences.
 ### Fixed
 
 ## [0.03]

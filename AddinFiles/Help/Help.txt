@@ -2,47 +2,20 @@ Title: OSI PI Tools
 
 This is a collection of tools to facilitate connecting to OSISoft (now Aveva)'s PI Historian.
 
+As of version 0.1 this add-in uses the PI Web API and requires PI Web API version 2021 SP3. Version 0.03 and earlier required ODBC, OLEDB, and DAS to connect to PI.
+
 About: Version
 Find the latest version of this add-in here:
 
 https://community.jmp.com/t5/JMP-Add-Ins/OSI-PI-Data/ta-p/224525
 
-The latest source code is available here:
+The latest source code is available on github, submit bug reports here:
 
 https://github.com/himanga/JMPOSIPIData
 
 About: Developer
 Created by Isaac Himanga
 
-Submit bug reports via github at the link <above: Version>.
+*Contributers*
 
-Section: PI Installation
-Installation files are available from OSI.
-
-Install all four executables using all defaults (below are the latest tested versions).
-
-- PI-ODBC_2016-R2_.exe
-- PI-OLEDB_2019_.exe
-- PI-OLEDB-Enterprise_2019-Patch-1_.exe
-- PISQLDAS_2018_.exe
-
-Set up odbc connections to archive server
-
-- Set up connection to pi server in PI SDK or other software, verify connection to server
-- Open ODBC Data Sources (search for ODBC in start), pick 32 or 64 bit based on the installation of JMP
-- Add a new User or System DSN
-- Pick PI ODBC Driver and click finish
-- In the box that opens:
-  - ODBC Data Source
-    - *Name* - Any name for the odbc source, for example "Plant1 PI Archive"
-	- *Description* - Can be blank
-  - PI SQL Data Access Server
-	- *Name* - The local computer name (where DAS, ODBC, and OLEDB software was installed)
-  - Data Source Tab
-    - *Type* - PI OLEDB Provider
-	- *PI Data Archive* - The name of the PI server or collective, (match what is in SDK)
-	- *Initial catalog* - piarchive
-	- *Options* - Leave default
-- Press OK
-
-Note that adding connections to PI servers and setting up ODBC data sources can be automated and deployed silently.
+- [Predictum Inc.](https://predictum.com/)

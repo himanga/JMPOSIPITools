@@ -260,7 +260,7 @@ FieldFromLine = function( {field, line}, {r, rx},
 BuildJSL = function( {}, {txt},
 
 	// Get inputs
-	serverName = Server << GetText;
+	serverName = tb_server << GetText;
 	querytype = rb_querytype << Get Selected;
 	searchfield = rb_SearchField << Get Selected;
 	cnformat = cb_cnformat << Get Selected;
@@ -460,7 +460,7 @@ debug = 0;
 						//PI Server Name
 						sbDefault(), 
 						
-						stdtxtInput( varname = "Server",
+						stdtxtInput( varname = "tb_server",
 							descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
 							helpmsg = "Enter the name of the PI Web Server." ||
 								"\!N\!NChange the default value using the User Preferences below." ),
@@ -482,6 +482,25 @@ debug = 0;
 							descmsg = "Max rows", 
 							initval = ns:UserPref["Max_Rows"], 
 							helpmsg = "Enter the maximum number of values to return per tag." ),
+						
+						//Recall connection
+						H List Box(
+							Text Box( "Recall Connection: "),
+							cb_connpresets = Combo Box( 
+								window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
+									ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
+								transform each( {line}, window:connections, {w},
+									w = words(line, ";");
+									w[1] || " (" || w[2] || ")"
+								),
+								conn = filter each( {line}, window:connections, {w},
+									w = words(line, ";");
+									(cb_connpresets << Get Selected() ) == w[1] || " (" || w[2] || ")"
+								)[1];
+								tb_server << Set Text(words(conn, ";")[2]);
+								tb_BaseURL << Set Text(words(conn, ";")[3]);
+							)
+						),
 						
 						//radio buttons to choose the type of query
 						panelbox("Query Types",
