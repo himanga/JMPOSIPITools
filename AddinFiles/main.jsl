@@ -548,7 +548,8 @@ nw = New Window( "PI Web API Query Builder",
 								try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
 							)[1];
 							tb_server << Set Text(words(conn, ";")[2]);
-							tb_BaseURL << Set Text(words(conn, ";")[3])
+							tb_BaseURL << Set Text(words(conn, ";")[3]);
+							UpdateOutput();
 						),
 						helpmsg = "Select one of the conections defined in your preferences."
 					),
