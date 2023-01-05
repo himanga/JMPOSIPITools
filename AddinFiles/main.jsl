@@ -489,414 +489,412 @@ BuildJSL = function( {}, {txt},
 debug = 0;
 
 //window box, all code is inside this box
+nw = New Window( "PI Web API Query Builder",
 
-	nw = New Window( "PI Web API Query Builder",
-
-		//box to hold spacers on left and right side of data
-		H List Box ( 
-			
-			//spacer on left side of window
-			Spacer Box( Size( 12, 12) ),
+	//box to hold spacers on left and right side of data
+	H List Box ( 
 		
-			//box to hold heading above all other contents
-			V List Box(
-				Text Box( "Get Data from a PI Server ", << Set Width( 500 ),  << Set Font Size( 20 ) ), 
-				Spacer Box( Size( 12, 12 ) ),
-				
-				H List Box(
-				
-					V List Box(
-						
-						//PI Server Name
-						sbDefault(), 
-						
-						stdtxtInput( varname = "tb_server",
-							descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
-							helpmsg = "Enter the name of the PI Web Server." ||
-								"\!N\!NChange the default value using the User Preferences below." ),
+		//spacer on left side of window
+		Spacer Box( Size( 12, 12) ),
+	
+		//box to hold heading above all other contents
+		V List Box(
+			Text Box( "Get Data from a PI Server ", << Set Width( 500 ),  << Set Font Size( 20 ) ), 
+			Spacer Box( Size( 12, 12 ) ),
+			
+			H List Box(
+			
+				V List Box(
+					
+					//PI Server Name
+					sbDefault(), 
+					
+					stdtxtInput( varname = "tb_server",
+						descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
+						helpmsg = "Enter the name of the PI Web Server." ||
+							"\!N\!NChange the default value using the User Preferences below." ),
 
-						//PI Web API Base URL
-						sbDefault(),
+					//PI Web API Base URL
+					sbDefault(),
 
-						hlbURL = stdtxtInput( varname = "tb_BaseURL",
-							descmsg = "Web API Base URL", initval = ns:UserPref["Base_Url"], 
-							helpmsg = "Enter the base URL to access the PI Web API." ||
-								"\!N\!NChange the default value using the User Preferences below." );
-						hlbURL[TextEditBox(1)] << setWidth(250);
-						hlbURL,
-						
-						//Max number of values
-						sbDefault(),  
-						
-						stdtxtInput( varname = "tb_maxrows",
-							descmsg = "Max rows", 
-							initval = ns:UserPref["Max_Rows"], 
-							helpmsg = "Enter the maximum number of values to return per tag." ),
-						
-						//Recall Connection
-						window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
-									ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
-						stdcbInput(
-							descmsg = "Recall Connection", 
-							varname = "cb_connpresets",
-							values = transform each( {line}, window:connections, {w},
+					hlbURL = stdtxtInput( varname = "tb_BaseURL",
+						descmsg = "Web API Base URL", initval = ns:UserPref["Base_Url"], 
+						helpmsg = "Enter the base URL to access the PI Web API." ||
+							"\!N\!NChange the default value using the User Preferences below." );
+					hlbURL[TextEditBox(1)] << setWidth(250);
+					hlbURL,
+					
+					//Max number of values
+					sbDefault(),  
+					
+					stdtxtInput( varname = "tb_maxrows",
+						descmsg = "Max rows", 
+						initval = ns:UserPref["Max_Rows"], 
+						helpmsg = "Enter the maximum number of values to return per tag." ),
+					
+					//Recall Connection
+					window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
+								ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
+					stdcbInput(
+						descmsg = "Recall Connection", 
+						varname = "cb_connpresets",
+						values = transform each( {line}, window:connections, {w},
+							w = words(line, ";");
+							w[1] || " (" || w[2] || ")"
+						),
+						fn = function( {this, index},
+							conn = filter each( {line}, window:connections, {w},
 								w = words(line, ";");
-								w[1] || " (" || w[2] || ")"
+								try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
+							)[1];
+							tb_server << Set Text(words(conn, ";")[2]);
+							tb_BaseURL << Set Text(words(conn, ";")[3])
+						),
+						helpmsg = "Select one of the conections defined in your preferences."
+					),
+					
+					//radio buttons to choose the type of query
+					panelbox("Query Types",
+						rb_querytype = radio box({ "Point Info", "Snapshot Values", "All Archived Values", 
+							"Interpolated Values", "Average", "Count", "Max", "Min", 
+							"Population Standard Deviation", "Range", "Standard Deviation", "Totals"},
+							DefaultTableFormat();
+							UpdateOutput();
+						),
+					),
+					//Start, end, and interval times
+					lb_querytimes = V List Box(
+						
+						stdcbInput(
+							descmsg = "Presets: ", 
+							varname = "cb_times",
+							values = "Custom",
+							fn = function( {this, index}, 
+								preset = try( cb_times << Get Selected; );
+								try(	if( !( preset == "Custom" ),
+										nms = ns:map(PresetTimes, function({x}, x[1] == preset) );
+										TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
+										TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
+										TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
+										SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
+										TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
+									);
+									UpdateOutput();
+								);
 							),
-							fn = function( {this, index},
-								conn = filter each( {line}, window:connections, {w},
-									w = words(line, ";");
-									try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
-								)[1];
-								tb_server << Set Text(words(conn, ";")[2]);
-								tb_BaseURL << Set Text(words(conn, ";")[3])
-							),
-							helpmsg = "Select one of the conections defined in your preferences."
+							helpmsg = "Examples to demonstrate a few common time configurations."
 						),
 						
-						//radio buttons to choose the type of query
-						panelbox("Query Types",
-							rb_querytype = radio box({ "Point Info", "Snapshot Values", "All Archived Values", 
-								"Interpolated Values", "Average", "Count", "Max", "Min", 
-								"Population Standard Deviation", "Range", "Standard Deviation", "Totals"},
-								DefaultTableFormat();
+						lb_starttime = V List Box(
+							sbDefault(),
+							stdtxtInput( varname = "TimeStart",
+								descmsg = "Start Time", initval = "t - 1d", 
+								helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+						),
+						lb_endtime = V List Box(
+							sbDefault(),
+							stdtxtInput( varname = "TimeEnd",
+								descmsg = "End Time", initval = "*", 
+								helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+						),
+						
+						lb_intervaltime = V List Box(
+							sbDefault(),
+							stdtxtInput( varname = "TimeInterval",
+								descmsg = "Interval", initval = "1h", 
+								helpmsg = "The amount of time pertaining to each row." ||
+									"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
+								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+						),
+						lb_steptime = V List Box(
+							sbDefault(),
+							V List Box(
+								H List Box(
+									
+									V Center Box( 
+										H List Box(
+											SeparateInterval = Check Box( 
+												"Set step time separate from interval time.", 
+												<< SetFunction( function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) )
+											),
+											<<Set Width( 250 )
+										)
+									),
+											
+									V Center Box( bbHelp("Advanced, check this to run a query where the time period " ||
+										"pertaining to each row is longer or shorter than the time between rows." ||
+										"\!N\!NThis would allow 'moving averages', for example where the 10 minute " ||
+										"average is updated every minute." ||
+										"Step time determines how many rows will be in your data table.  Interval time " ||
+										"determines how much time relates to each row." ||
+										"\!N\!NIf you want a value at 1AM, 2AM, 3AM, then step time = 1h" ||
+										"\!N\!NIf you want the 2AM value to include the average over the last two hours, then interval time = 2h"
+									) )
+								),
+								lb_steptimesub = V List Box(
+									sbDefault(),
+									stdtxtInput( varname = "TimeStep",
+										descmsg = "Step Time", initval = "1h", 
+										helpmsg = "The time between each row." ||
+											"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
+											fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+								)
+							)
+						)
+					),
+					
+					lb_CalcBasis = H List Box(
+						//radio buttons to choose the type of weighting for aggregated data
+						pbCalcBasis = panelbox("Calculation Basis",
+							rb_calctype = radio box({ "TimeWeighted", "EventWeighted", "TimeWeightedContinuous", 
+							"TimeWeightedDiscrete", "EventWeightedExcludeMostRecentEvent",
+							"EventWeightedExcludeEarliestEvent", "EventWeightedIncludeBothEnds" },
 								UpdateOutput();
 							),
 						),
-						//Start, end, and interval times
-						lb_querytimes = V List Box(
-							
-							stdcbInput(
-								descmsg = "Presets: ", 
-								varname = "cb_times",
-								values = "Custom",
-								fn = function( {this, index}, 
-									preset = try( cb_times << Get Selected; );
-									try(	if( !( preset == "Custom" ),
-											nms = ns:map(PresetTimes, function({x}, x[1] == preset) );
-											TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
-											TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
-											TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
-											SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
-											TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
+						bbHelp( "How should summarized values be calculated?  This makes a big difference " ||
+							"when there are 10 archived values one hour with a small value and 1 archived value " ||
+							"the next hour with a large value.", HelpType = "stdradio" )
+					)
+				),
+				
+				Spacer Box( Size( 24, 24 ) ),
+				
+				hsb_main = H List Box(
+					V List Box(
+					
+						//radio buttons to choose whether to search for tag or description
+						lb_searchfield = H List Box(
+							panelbox("Search Field",
+								rb_SearchField = radio box({ "tag", "descriptor", "webID"},
+									UpdateOutput();
+								),
+							),
+							bbHelp( "Search for tag names, descriptions, or point webIDs.", 
+								HelpType = "stdradio" )
+						),
+						
+						//List of Tags
+						Spacer Box( Size( 12, 12 ) ),
+						H List Box(
+							tb_tagnameshead = Text Box( "Tag Names",
+									<< Padding( Right( 5 ) ) ),
+							bbHelp( "Enter a list of tag names or descriptions here, " ||
+								"\!N\!NFor Example:" ||
+								"\!Ntag01-AFA;My Tag Name" ||
+								"\!N or:" ||
+								"\!Ntag01-AFA;My Tag Name;Group 1" ),
+							V Center Box( Mouse Box(
+								Text Box( "Resize to Fit Window",
+									<< Set Font Size ( 10 ),
+									<< Font Color ( "blue" ),
+									<< Padding( Left( 20 ) )
+								),
+								<< setTrackEnable( 1 ),
+								<< setTrack( Function( {this, clickpt},
+										this << setCursor( "Finger" ); /* button-up tracking - use the hand */
+										If((clickpt[1] == -1 & clickpt[2] == -1 ),
+											(this << child) << Set Font Style ("plain"),
+											(this << child) << Set Font Style ("bold");
+										)
+								) ),
+								<<SetClickEnable( 1 ),
+								<<SetClick( Function( {this, clickpt, event},
+										If(event == "Pressed", SizeTextBoxes() )
+								) )
+							))
+						),
+						Spacer Box( Size( 2, 2 ) ), 
+						V List Box( 
+							TagListsb = Scroll Box( size(400,400), flexible(1),
+								TagList = Text Edit Box(
+									"Sinusoid",
+									<< Justify Text( Left ),
+									//<< Set Width( 400 ),
+									<< setNlines( 20 ),
+									<< Set Wrap( 2000 ),
+									<< SetFunction( function( {this}, 
+										UpdateOutput(); 
+									) ),
+									<< User Resizable( {1, 1} );
+								)
+							)
+						),
+						Spacer Box( Size( 2, 2 ) ), 
+						H List Box(
+							V Center Box( Text Box( "Column Name Format: ") ),
+							V Center Box( cb_cnformat = Combo Box( {
+								"tag",
+								"friendly",
+								"friendlytag"
+							},
+								UpdateOutput();
+							) ),
+							V Center Box( bbHelp( "Choose how tags should be named in the resulting data table." ||
+								"This determines the names in the 'tag' or 'expr' column in long tables, and " ||
+								"column names in the wide format." ||
+								"\!N\!NExample input in section above:" ||
+								"\!Ntag01-AFA;My Tag Name;Group 1" ||
+								"\!N\!NResults in these tag or column names:" ||
+								"\!Ntag: tag01-AFA" ||
+								"\!Nfriendly: My Tag Name" ||
+								"\!Nfriendlytag: My Tag Name (tag01-AFA)"
+							) )
+						),
+						
+						//Save tag names in column notes
+						Spacer Box( Size( 2, 2 ) ), 
+						H List Box(
+							cb_tagtonotes = Check Box( "Save tag names in column notes.", UpdateOutput() ),
+							bbHelp("When checked tag names are saved under the 'notes' property of a column.  Find " ||
+								"this under Column Info."
+							)
+						),
+						/*
+						//Group Columns
+						Spacer Box( Size( 2, 2 ) ), 
+						H List Box(
+							cb_groupcols = Check Box( "Group columns", UpdateOutput() ),
+							bbHelp("When checked columns are grouped together based on the group name specified " ||
+								"in the list above.  There must be at least two tags per group."
+							)
+						),
+						*/
+						
+						//radio buttons with examples, when selected the text in the formula edit box is modified
+						Spacer Box( Size( 2, 2 ) ), 
+						H List Box(
+							lb_matchtype = H List Box(
+								Panelbox("Tag Matching Type",
+									rb_matchtype = radio box({"Exact", "Starts with", "Ends with", "Contains"},
+										two_rb = rb_matchtype << get selected;
+										if (two_rb == "Exact",
+											SearchType = "Exact";
+											two_rb == "Starts with",
+											SearchType = "Starts with";
+											two_rb == "Ends with",
+											SearchType = "Ends with";
+											two_rb == "Contains",
+											SearchType = "Contains";
 										);
 										UpdateOutput();
-									);
-								),
-								helpmsg = "Examples to demonstrate a few common time configurations."
-							),
-							
-							lb_starttime = V List Box(
-								sbDefault(),
-								stdtxtInput( varname = "TimeStart",
-									descmsg = "Start Time", initval = "t - 1d", 
-									helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
-									fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-							),
-							lb_endtime = V List Box(
-								sbDefault(),
-								stdtxtInput( varname = "TimeEnd",
-									descmsg = "End Time", initval = "*", 
-									helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
-									fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-							),
-							
-							lb_intervaltime = V List Box(
-								sbDefault(),
-								stdtxtInput( varname = "TimeInterval",
-									descmsg = "Interval", initval = "1h", 
-									helpmsg = "The amount of time pertaining to each row." ||
-										"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
-									fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-							),
-							lb_steptime = V List Box(
-								sbDefault(),
-								V List Box(
-									H List Box(
-										
-										V Center Box( 
-											H List Box(
-												SeparateInterval = Check Box( 
-													"Set step time separate from interval time.", 
-													<< SetFunction( function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) )
-												),
-												<<Set Width( 250 )
-											)
-										),
-											 
-										V Center Box( bbHelp("Advanced, check this to run a query where the time period " ||
-											"pertaining to each row is longer or shorter than the time between rows." ||
-											"\!N\!NThis would allow 'moving averages', for example where the 10 minute " ||
-											"average is updated every minute." ||
-											"Step time determines how many rows will be in your data table.  Interval time " ||
-											"determines how much time relates to each row." ||
-											"\!N\!NIf you want a value at 1AM, 2AM, 3AM, then step time = 1h" ||
-											"\!N\!NIf you want the 2AM value to include the average over the last two hours, then interval time = 2h"
-										) )
 									),
-									lb_steptimesub = V List Box(
-										sbDefault(),
-										stdtxtInput( varname = "TimeStep",
-											descmsg = "Step Time", initval = "1h", 
-											helpmsg = "The time between each row." ||
-												"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
-												fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-									)
-								)
-							)
-						),
-						
-						lb_CalcBasis = H List Box(
-							//radio buttons to choose the type of weighting for aggregated data
-							pbCalcBasis = panelbox("Calculation Basis",
-								rb_calctype = radio box({ "TimeWeighted", "EventWeighted", "TimeWeightedContinuous", 
-								"TimeWeightedDiscrete", "EventWeightedExcludeMostRecentEvent",
-								"EventWeightedExcludeEarliestEvent", "EventWeightedIncludeBothEnds" },
-									UpdateOutput();
 								),
+								bbHelp( "Exact is the fastest but does not allow wildcards." ||
+									"\!N\!NStarts with adds a '*' to the beginning of each line." ||
+									"\!N\!NEnds with adds a '*' to the end of each line." ||
+									"\!N\!NContains with adds a '*' to the beginning and end of each line.",
+									HelpType = "stdradio"
+								)
 							),
-							bbHelp( "How should summarized values be calculated?  This makes a big difference " ||
-								"when there are 10 archived values one hour with a small value and 1 archived value " ||
-								"the next hour with a large value.", HelpType = "stdradio" )
-						)
-					),
-					
-					Spacer Box( Size( 24, 24 ) ),
-					
-					hsb_main = H List Box(
-						V List Box(
-						
-							//radio buttons to choose whether to search for tag or description
-							lb_searchfield = H List Box(
-								panelbox("Search Field",
-									rb_SearchField = radio box({ "tag", "descriptor", "webID"},
+							Spacer Box( Size( 24, 24 ) ),
+							lb_longwide = H List Box(
+								//radio buttons to choose wide or long format (whether or not to split )
+								longwidepb = panelbox("Table format",
+									rb_tblformat = radio box({"Long", "Wide"},
+										//warn user if using wide format with all archived values
+										if( ( ( rb_querytype << Get selected ) == "All Archived Values") & ( ( rb_tblformat << Get selected ) == "Wide"),
+											rb_tblformat << Background Color("lightorange");
+											New Window( "Huge table warning", Modal, Text Box("Be careful, using a wide table "||
+												"with process data can lead to huge tables.  This should only be selected with lab " ||
+												"data or when there are relatively few archived values.")
+											),
+											rb_tblformat << Background Color( 2147483647 );
+										);
 										UpdateOutput();
 									),
 								),
-								bbHelp( "Search for tag names, descriptions, or point webIDs.", 
-									HelpType = "stdradio" )
-							),
-							
-							//List of Tags
-							Spacer Box( Size( 12, 12 ) ),
-							H List Box(
-								tb_tagnameshead = Text Box( "Tag Names",
-										<< Padding( Right( 5 ) ) ),
-								bbHelp( "Enter a list of tag names or descriptions here, " ||
-									"\!N\!NFor Example:" ||
-									"\!Ntag01-AFA;My Tag Name" ||
-									"\!N or:" ||
-									"\!Ntag01-AFA;My Tag Name;Group 1" ),
-								V Center Box( Mouse Box(
-									Text Box( "Resize to Fit Window",
-										<< Set Font Size ( 10 ),
-										<< Font Color ( "blue" ),
-										<< Padding( Left( 20 ) )
-									),
-									<< setTrackEnable( 1 ),
-									<< setTrack( Function( {this, clickpt},
-											this << setCursor( "Finger" ); /* button-up tracking - use the hand */
-											If((clickpt[1] == -1 & clickpt[2] == -1 ),
-												(this << child) << Set Font Style ("plain"),
-												(this << child) << Set Font Style ("bold");
-											)
-									) ),
-									<<SetClickEnable( 1 ),
-									<<SetClick( Function( {this, clickpt, event},
-											If(event == "Pressed", SizeTextBoxes() )
-									) )
-								))
-							),
-							Spacer Box( Size( 2, 2 ) ), 
-							V List Box( 
-								TagListsb = Scroll Box( size(400,400), flexible(1),
-									TagList = Text Edit Box(
-										"Sinusoid",
-										<< Justify Text( Left ),
-										//<< Set Width( 400 ),
-										<< setNlines( 20 ),
-										<< Set Wrap( 2000 ),
-										<< SetFunction( function( {this}, 
-											UpdateOutput(); 
-										) ),
-										<< User Resizable( {1, 1} );
-									)
-								)
-							),
-							Spacer Box( Size( 2, 2 ) ), 
-							H List Box(
-								V Center Box( Text Box( "Column Name Format: ") ),
-								V Center Box( cb_cnformat = Combo Box( {
-									"tag",
-									"friendly",
-									"friendlytag"
-								},
-									UpdateOutput();
-								) ),
-								V Center Box( bbHelp( "Choose how tags should be named in the resulting data table." ||
-									"This determines the names in the 'tag' or 'expr' column in long tables, and " ||
-									"column names in the wide format." ||
-									"\!N\!NExample input in section above:" ||
-									"\!Ntag01-AFA;My Tag Name;Group 1" ||
-									"\!N\!NResults in these tag or column names:" ||
-									"\!Ntag: tag01-AFA" ||
-									"\!Nfriendly: My Tag Name" ||
-									"\!Nfriendlytag: My Tag Name (tag01-AFA)"
-								) )
-							),
-							
-							//Save tag names in column notes
-							Spacer Box( Size( 2, 2 ) ), 
-							H List Box(
-								cb_tagtonotes = Check Box( "Save tag names in column notes.", UpdateOutput() ),
-								bbHelp("When checked tag names are saved under the 'notes' property of a column.  Find " ||
-									"this under Column Info."
-								)
-							),
-							/*
-							//Group Columns
-							Spacer Box( Size( 2, 2 ) ), 
-							H List Box(
-								cb_groupcols = Check Box( "Group columns", UpdateOutput() ),
-								bbHelp("When checked columns are grouped together based on the group name specified " ||
-									"in the list above.  There must be at least two tags per group."
-								)
-							),
-							*/
-							
-							//radio buttons with examples, when selected the text in the formula edit box is modified
-							Spacer Box( Size( 2, 2 ) ), 
-							H List Box(
-								lb_matchtype = H List Box(
-									Panelbox("Tag Matching Type",
-										rb_matchtype = radio box({"Exact", "Starts with", "Ends with", "Contains"},
-											two_rb = rb_matchtype << get selected;
-											if (two_rb == "Exact",
-												SearchType = "Exact";
-												two_rb == "Starts with",
-												SearchType = "Starts with";
-												two_rb == "Ends with",
-												SearchType = "Ends with";
-												two_rb == "Contains",
-												SearchType = "Contains";
-											);
-											UpdateOutput();
-										),
-									),
-									bbHelp( "Exact is the fastest but does not allow wildcards." ||
-										"\!N\!NStarts with adds a '*' to the beginning of each line." ||
-										"\!N\!NEnds with adds a '*' to the end of each line." ||
-										"\!N\!NContains with adds a '*' to the beginning and end of each line.",
-										HelpType = "stdradio"
-									)
-								),
-								Spacer Box( Size( 24, 24 ) ),
-								lb_longwide = H List Box(
-									//radio buttons to choose wide or long format (whether or not to split )
-									longwidepb = panelbox("Table format",
-										rb_tblformat = radio box({"Long", "Wide"},
-											//warn user if using wide format with all archived values
-											if( ( ( rb_querytype << Get selected ) == "All Archived Values") & ( ( rb_tblformat << Get selected ) == "Wide"),
-												rb_tblformat << Background Color("lightorange");
-												New Window( "Huge table warning", Modal, Text Box("Be careful, using a wide table "||
-													"with process data can lead to huge tables.  This should only be selected with lab " ||
-													"data or when there are relatively few archived values.")
-												),
-												rb_tblformat << Background Color( 2147483647 );
-											);
-											UpdateOutput();
-										),
-									),
-									bbHelp("Long: Five columns: Tag, Time, Value, sValue, and Status." ||
-										"\!N\!NWide: One row per time, columns for each value.",
-										HelpType = "stdradio"
-									)
+								bbHelp("Long: Five columns: Tag, Time, Value, sValue, and Status." ||
+									"\!N\!NWide: One row per time, columns for each value.",
+									HelpType = "stdradio"
 								)
 							)
+						)
+					),
+					
+					V list box(
+						//JSL
+						obJSLScript = Outline Box( "JSL to Run Query",
+							JSLout = Script Box(
+								"", 750, 400
+							),
+							<< close;
+							<< outlinecloseorientation( "Vertical" )
 						),
-						
-						V list box(
-							//JSL
-							obJSLScript = Outline Box( "JSL to Run Query",
-								JSLout = Script Box(
-									"", 750, 400
-								),
-								<< close;
-								<< outlinecloseorientation( "Vertical" )
-							),
-							Spacer Box( Size( 2, 2 ) ),
-							bbHelp( "This script is updated to reflect changes in the options in this window." ||
-								"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
-								"will be overwritten the next time any other value in the window is changed.",
-								HelpType = "stdoutline"
-							)
+						Spacer Box( Size( 2, 2 ) ),
+						bbHelp( "This script is updated to reflect changes in the options in this window." ||
+							"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
+							"will be overwritten the next time any other value in the window is changed.",
+							HelpType = "stdoutline"
 						)
 					)
-					
-				), //end of box with options
+				)
 				
-				//Box to hold command buttons
-				H List Box(
-				
-					//button to run the script
-					Button Box( "Run query",
-						
-						ns:logusage( "Run query" );
-						
-						Eval( Parse( Eval Expr( Expr( JSLout << get text ) ) ) );
-						
-						Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
-						Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
-						
-					), //end of 'OK' command button
-					
-					//button to close the window
-					Button Box( "Close/Cancel",
-						nw << Close Window;
-					),
-					
-					Button Box( "Help",
-						Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
-					),
-					
-					Button Box( "Examples",
-						exmplWin = New Window( "Example Queries",
-							V List box(
-								Text Box( "Example Queries", <<Set Font Style("bold" )),
-								
-								lb_ExQuery = List Box( ns:map(exQueries, function({x}, x[1])) ),
-								
-								Spacer Box( Size( 24, 24 ) ),
-								H List Box(
-									Button Box( "Load Query", 
-										LoadDefault( ( lb_ExQuery << Get Selected )[1] );
-										exmplWin << Close Window;
-									),
-									Button Box( "Close", exmplWin << Close Window() )
-								),
-								<< Padding( Top(20), Left(20), right(20), bottom(20) )
-							)
-						)
-					),
-					
-					Button Box( "User Preferences",
-						include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
-					)
-					
-				), //end of box to hold command buttons
-						
-				//spacer on bottom of window
-				Spacer Box( Size( 12, 12 ) )
-				
-			), //end of vertical box with heading above all other contents
+			), //end of box with options
 			
-			//spacer in right side of window
+			//Box to hold command buttons
+			H List Box(
+			
+				//button to run the script
+				Button Box( "Run query",
+					
+					ns:logusage( "Run query" );
+					
+					Eval( Parse( Eval Expr( Expr( JSLout << get text ) ) ) );
+					
+					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
+					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
+					
+				), //end of 'OK' command button
+				
+				//button to close the window
+				Button Box( "Close/Cancel",
+					nw << Close Window;
+				),
+				
+				Button Box( "Help",
+					Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
+				),
+				
+				Button Box( "Examples",
+					exmplWin = New Window( "Example Queries",
+						V List box(
+							Text Box( "Example Queries", <<Set Font Style("bold" )),
+							
+							lb_ExQuery = List Box( ns:map(exQueries, function({x}, x[1])) ),
+							
+							Spacer Box( Size( 24, 24 ) ),
+							H List Box(
+								Button Box( "Load Query", 
+									LoadDefault( ( lb_ExQuery << Get Selected )[1] );
+									exmplWin << Close Window;
+								),
+								Button Box( "Close", exmplWin << Close Window() )
+							),
+							<< Padding( Top(20), Left(20), right(20), bottom(20) )
+						)
+					)
+				),
+				
+				Button Box( "User Preferences",
+					include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
+				)
+				
+			), //end of box to hold command buttons
+					
+			//spacer on bottom of window
 			Spacer Box( Size( 12, 12 ) )
 			
-		) //end of horizontal box for spacers on left and right side
+		), //end of vertical box with heading above all other contents
 		
-	)
-; //end of window box
+		//spacer in right side of window
+		Spacer Box( Size( 12, 12 ) )
+		
+	) //end of horizontal box for spacers on left and right side
+	
+); //end of window box
 
 
 // Example Queries to load
