@@ -20,6 +20,15 @@ If(
 ns:logusage( "Get PI Data" );
 
 
+//Function to assign a value to a symbol when the symbol name is pased as a string
+assignparsename = function({left, right}, 
+	Eval(Substitute(
+		Eval List( {as name( name expr( left ) ), right} ),
+		Expr({}),
+		Expr( assign() )
+	) );
+);
+
 //Standard box to display description for each input
 tbDesc = Function( {descmsg, helpmsg, wdth = 100},
 	Eval( Eval Expr(  VCenter Box( 
@@ -49,8 +58,26 @@ tebText = Function( {initval, varname, helpmsg = "", wdth = 150,
 	return(centeredbox)
 );
 
+//Standard combo box
+cbCombo = Function( {values, fn, varname, helpmsg = "", wdth = 150 },
+	cbexpr2 = (Eval Expr(  VCenter Box( 
+		assignparsename(
+			varname,
+			Combo Box(
+				values,
+				<< Set Width( wdth ),
+				<< Set Tip( helpmsg ),
+				<< Set Function( Expr( Name Expr( fn ) ) )
+			)
+		)
+	) ) );
+	centeredbox = Eval( cbexpr2 );
+	
+	return(centeredbox);
+);
+
 //Standard button to display help info
-bbHelp = Function( {helpmsg, HelpType = "stdtext" },
+bbHelp = Function( {helpmsg, HelpType = "stdtext" }, {toppad, bb},
 	toppad = If( 
 		HelpType == "stdtext", -2, 
 		HelpType == "stdoutline", 0,
@@ -93,6 +120,29 @@ stdtxtInput = Function( { varname, descmsg, initval, helpmsg, nlines = 1, descwi
 	) )
 );
 
+//Standard combobox input
+stdcbInput = Function( { descmsg, varname, values, fn, helpmsg },
+	
+	H List Box(
+		Eval( Eval Expr( 
+			tbDesc( Expr( descmsg ), helpmsg )
+		) ),
+		
+		sbDefault(), 
+		
+		cbexpr = (Eval Expr(
+			cbCombo( Expr( Name Expr( values ) ), Name Expr( fn ), varname, helpmsg )
+		));
+		
+		Eval(cbexpr),
+		
+		sbDefault(), 
+		
+		bbHelp( helpmsg )
+		
+	)
+);
+
 //Set default Table format
 DefaultTableFormat = function( {},
 	querytype = rb_querytype << Get Selected;
@@ -104,7 +154,7 @@ DefaultTableFormat = function( {},
 		querytype == "Calculated Expression",
 		rb_tblformat << Set( 1 ),
 		
-		querytimes << Visibility("visible");
+		lb_querytimes << Visibility("visible");
 		rb_tblformat << Set( 2 );,
 	);
 	
@@ -147,7 +197,7 @@ UpdateOutput = function( {},
 	
 	//Show or hide time options
 	if( querytype == "Point Info",
-		querytimes << Visibility("collapse");
+		lb_querytimes << Visibility("collapse");
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
@@ -158,7 +208,7 @@ UpdateOutput = function( {},
 	,
 	
 		querytype == "Snapshot Values",
-		querytimes << Visibility("collapse");
+		lb_querytimes << Visibility("collapse");
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
@@ -169,7 +219,7 @@ UpdateOutput = function( {},
 	,
 		
 		querytype == "All Archived Values",
-		querytimes << Visibility("visible");
+		lb_querytimes << Visibility("visible");
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
@@ -179,7 +229,7 @@ UpdateOutput = function( {},
 	,
 		
 		querytype == "Interpolated Values",
-		querytimes << Visibility("visible");
+		lb_querytimes << Visibility("visible");
 		lb_intervaltime << Visibility("visible");
 		lb_steptime << Visibility("collapse");
 		lb_CalcBasis << Visibility("collapse");
@@ -189,7 +239,7 @@ UpdateOutput = function( {},
 	,
 		/*
 		querytype == "Calculated Expression",
-		querytimes << Visibility("visible");
+		lb_querytimes << Visibility("visible");
 		lb_steptime << Visibility("collapse");
 		lb_CalcBasis << Visibility("collapse");
 		lb_searchfield << Visibility("collapse");
@@ -198,7 +248,7 @@ UpdateOutput = function( {},
 		lb_longwide << Visibility("collapse");
 		,
 		*/
-		querytimes << Visibility("visible");
+		lb_querytimes << Visibility("visible");
 		lb_intervaltime << Visibility("visible");
 		// Separate step time only allowed for TimeWeighted basis
 		if(calctype == "TimeWeighted",
@@ -483,23 +533,25 @@ debug = 0;
 							initval = ns:UserPref["Max_Rows"], 
 							helpmsg = "Enter the maximum number of values to return per tag." ),
 						
-						//Recall connection
-						H List Box(
-							Text Box( "Recall Connection: "),
-							cb_connpresets = Combo Box( 
-								window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
+						//Recall Connection
+						window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
 									ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
-								transform each( {line}, window:connections, {w},
-									w = words(line, ";");
-									w[1] || " (" || w[2] || ")"
-								),
+						stdcbInput(
+							descmsg = "Recall Connection", 
+							varname = "cb_connpresets",
+							values = transform each( {line}, window:connections, {w},
+								w = words(line, ";");
+								w[1] || " (" || w[2] || ")"
+							),
+							fn = function( {this, index},
 								conn = filter each( {line}, window:connections, {w},
 									w = words(line, ";");
-									(cb_connpresets << Get Selected() ) == w[1] || " (" || w[2] || ")"
+									try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
 								)[1];
 								tb_server << Set Text(words(conn, ";")[2]);
-								tb_BaseURL << Set Text(words(conn, ";")[3]);
-							)
+								tb_BaseURL << Set Text(words(conn, ";")[3])
+							),
+							helpmsg = "Select one of the conections defined in your preferences."
 						),
 						
 						//radio buttons to choose the type of query
@@ -512,22 +564,28 @@ debug = 0;
 							),
 						),
 						//Start, end, and interval times
-						querytimes = V List Box(
-							H List Box(
-								Text Box( "Presets: "),
-								cb_times = Combo Box( "Custom",
-									preset = cb_times << Get Selected;
-									if( !( preset == "Custom" ),
-										nms = ns:map(PresetTimes, function({x}, x[1] == preset) );
-										TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
-										TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
-										TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
-										SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
-										TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
+						lb_querytimes = V List Box(
+							
+							stdcbInput(
+								descmsg = "Presets: ", 
+								varname = "cb_times",
+								values = "Custom",
+								fn = function( {this, index}, 
+									preset = try( cb_times << Get Selected; );
+									try(	if( !( preset == "Custom" ),
+											nms = ns:map(PresetTimes, function({x}, x[1] == preset) );
+											TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
+											TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
+											TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
+											SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
+											TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
+										);
+										UpdateOutput();
 									);
-									UpdateOutput();
-								)
+								),
+								helpmsg = "Examples to demonstrate a few common time configurations."
 							),
+							
 							lb_starttime = V List Box(
 								sbDefault(),
 								stdtxtInput( varname = "TimeStart",
@@ -785,8 +843,6 @@ debug = 0;
 						
 						ns:logusage( "Run query" );
 						
-						Show( "Running Query" );
-						
 						Eval( Parse( Eval Expr( Expr( JSLout << get text ) ) ) );
 						
 						Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
@@ -946,4 +1002,3 @@ UpdateOutput();
 If( ns:UserPref["Open_Script_Windows"] == "yes",
 	obJSLScript << Set Open;
 );
-
