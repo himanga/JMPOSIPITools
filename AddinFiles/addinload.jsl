@@ -31,7 +31,8 @@ ns:DefaultPref = Associative Array({
 	{"PI_Server", "My PI Archive"},
 	{"Base_Url", "https://localhost/piwebapi"},
 	{"Max_Rows", "10000"},
-	{"Open_Script_Windows", "no"}
+	{"Open_Script_Windows", "no"},
+	{"Connection_List", ""}
 });
 
 //set preference types, descriptions, and value restrictions
@@ -55,6 +56,11 @@ ns:PrefInfo = Associative Array({
 		"Should JSL script window be open by default (yes/no)?",
 		"char",
 		{"yes", "no"}
+	}},
+	{"Connection_List", {
+		"List of possible connections that can be recalled from the platform, one line per connection: name;piserver;url-including-http",
+		"char",
+		{}
 	}}
 });
 

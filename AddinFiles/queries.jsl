@@ -153,12 +153,13 @@ ns:GetRequest = Function({endpoint, queryParameters},
 	);
 	result = request << send;
 	if(!(request << IsSuccess),
-		errorMessage = (request << GetStatusMessage) || "\!N";
-		try(errorMessage ||= (char(parseJSON(result)["Errors"]) || "\!N"));
-		errorMessage ||= ("\!NLast URL: " || (request << GetLastURL));
-		Throw(errorMessage)
+		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
+		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
+		errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
+		//errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
+		Throw(errorMessage);
 	);
-	return(parseJSON(result))
+	return(parseJSON(result));
 );
 
 // Gets the data server WebId for the given serverName
@@ -229,7 +230,7 @@ ns:PointRequest = Function({dataServerID, searchStrings, searchField, matchType}
 		params["startIndex"] += ns:maxCount;
 	);
 
-	if(!nItems(pointIDs), throw("No points found"));
+	if(!nItems(pointIDs), throw("No matching PI points were found"));
 
 	return(pointIDs, pointNames)
 );
