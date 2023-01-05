@@ -38,27 +38,27 @@ ns:DefaultPref = Associative Array({
 //set preference types, descriptions, and value restrictions
 ns:PrefInfo = Associative Array({
 	{"PI_Server", {
-		"3 Name of the default PI Web Server.",
+		"Name of the default PI Web Server.",
 		"char",
 		{}
 	}},
 	{"Base_Url", {
-		"4 Base URL to access the PI Web API.",
+		"Base URL to access the PI Web API.",
 		"char",
 		{}
 	}},
 	{"Max_Rows", {
-		"1 Default maximum number of rows to return, enter a whole, positive number.",
+		"Default maximum number of rows to return, enter a whole, positive number.",
 		"char",
 		{}
 	}},
 	{"Open_Script_Windows", {
-		"2 Should JSL script window be open by default (yes/no)?",
+		"Should JSL script window be open by default (yes/no)?",
 		"char",
 		{"yes", "no"}
 	}},
 	{"Connection_List", {
-		"5 List of possible connections that can be recalled from the platform, one line per connection: name;piserver;url-including-http",
+		"List of possible connections that can be recalled from the platform, one line per connection: name;piserver;url-including-http",
 		"char",
 		{}
 	}}
