@@ -36,11 +36,15 @@ ns:GetLocalTimeZoneDifference = function({},
 	try(
 		return(ns:timeDifference)
 	,
-		request = New HTTP Request(
+		request = Expr( New HTTP Request(
 			URL(ns:baseURL),
 			Method("GET"),
 			password(":")
+		) );
+		if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
+			Insert Into(request, Expr( Secure(0)) );
 		);
+		request = Eval( request );
 		request << Send;
 		headers = request << Get Response Headers();
 		utc = headers["date"];
@@ -144,13 +148,17 @@ ns:GetRequest = Function({endpoint, queryParameters},
 	if(!EndsWith(baseURL, "/"),
 		baseURL ||= "/"
 	);
-	request = newHTTPRequest(
+	request = Expr( New HTTP Request(
 		URL(baseURL || endpoint),
 		Method("GET"),
 		QueryString(queryParameters),
 		Headers( {"Accept: application/json"} ),
 		Password(":")
+	) );
+	if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
+		Insert Into(request, Expr(Secure(0)));
 	);
+	request = Eval( request );
 	result = request << send;
 	if(!(request << IsSuccess),
 		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";

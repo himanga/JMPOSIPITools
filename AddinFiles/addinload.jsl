@@ -32,7 +32,8 @@ ns:DefaultPref = Associative Array({
 	{"Base_Url", "https://localhost/piwebapi"},
 	{"Max_Rows", "10000"},
 	{"Open_Script_Windows", "no"},
-	{"Connection_List", ""}
+	{"Connection_List", ""},
+	{"Allow_Insecure_Connections", "no"}
 });
 
 //set preference types, descriptions, and value restrictions
@@ -59,6 +60,11 @@ ns:PrefInfo = Associative Array({
 	}},
 	{"Connection_List", {
 		"List of possible connections that can be recalled from the platform, one line per connection: name;piserver;url-including-http",
+		"char",
+		{}
+	}},
+	{"Allow_Insecure_Connections", {
+		"Whether to allow connections to secuire sites that do not have a valid certificate.  Use this for testing only. (yes/no).",
 		"char",
 		{}
 	}}
