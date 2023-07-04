@@ -1,3 +1,18 @@
+<#
+About: This File
+Build the add-in.
+
+Section: Globals
+
+This file is part of the JMP OSI PI Tools Add-In.
+
+This Add-In is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This Add-In is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with the Add-In. If not, see <https://www.gnu.org/licenses/>.
+#>
+
 #Config
 #  Set output file name
 $FilePathPrefix = "JMPOSIPITools"
@@ -27,6 +42,11 @@ $customMetadataPath = $TempPath+"customMetadata.jsl"
     -replace 'List\( \"buildDate\", (\d+) \),', ('List( "buildDate", '+$updatetime+' ),') |
   Out-File $customMetadataPath
 $content = Get-Content -path $customMetadataPath
+
+#Copy changelog into add-in directory
+Copy-Item -Path "CHANGELOG.md" -Destination $TempPath"CHANGELOG.txt"
+Copy-Item -Path "README.md" -Destination $TempPath"README.txt"
+Copy-Item -Path "LICENSE" -Destination $TempPath"LICENSE.txt"
 
 #Make add-in file
 $ZipFileName = $FilePathPrefix+".zip"

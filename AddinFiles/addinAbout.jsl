@@ -3,6 +3,14 @@ Show information about the script including the name, development
 status, version, last build date, and other info.
 
 Section: Globals
+
+This file is part of the JMP OSI PI Tools Add-In.
+
+This Add-In is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This Add-In is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with the Add-In. If not, see <https://www.gnu.org/licenses/>.
 */
 
 Names default to here( 1 );
@@ -38,18 +46,41 @@ Eval( Eval Expr( aboutwin = new window( "About",
 		text box( "Developed by: " || ns:metadata_aa["developer"] || ".\!N" || 
 			ns:metadata_aa["developeremail"] || "\!N", << set width( 500 ) ),
 		text box( ns:metadata_aa["abouttext"] || "\!N", << set width( 500 ) ),
-		text box( "Current version: " || char( ns:metadata_aa["addinVersion"] ), << set width( 500 ) ),
-		text box( "Build Date: " || format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
-			padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) ),
-		text box( "ID: " || char( ns:metadata_aa["id"], << set width( 500 ) ) ),
-		text box( "Name in JMP: " || ns:metadata_aa["name"], << set width( 500 ) ),
-		text box( "Development Status: " || ns:metadata_aa["state"], << set width( 500 )	),
-		spacer box( 100, 100 ),
+		spacer box( size( 10, 10 ) ),
 		bb = Button Box( "Open Documentation",
 			Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt" ), JMP window ),
 			<< Style(Underline)
 		),
-		spacer box( 10, 10 ),
+		bb = Button Box( "View the Readme",
+			Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "README.txt" ), JMP window ),
+			<< Style(Underline)
+		),
+		spacer box( size( 10, 10 ) ),
+		h list box(
+			V List Box(
+				Spacer Box( Size( 0, 2 ) ),
+				text box( "This add-in is licensed via" )
+			),
+			bb = Button Box( "GPL v3.0",
+				Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "LICENSE.txt" ), JMP window ),
+				<< Style(Underline)
+			)
+		),
+		spacer box( size( 10, 10 ) ),
+		h list box(
+			V List Box(
+				Spacer Box( Size( 0, 2 ) ),
+				text box( "Current version: " || char( ns:metadata_aa["addinVersion"] ) || " (" || ns:metadata_aa["state"] || ")" )
+			),
+			bb = Button Box( "Change Log",
+				Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "CHANGELOG.txt" ), JMP window ),
+				<< Style(Underline)
+			),
+		),
+		text box( "Build Date: " || format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
+			padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) ),
+		text box( "ID: " || char( ns:metadata_aa["id"], << set width( 500 ) ) ),
+		spacer box( size( 10, 10 ) ),
 		H list box(
 			Button Box("Close",
 				aboutwin << Close window();

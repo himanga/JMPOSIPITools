@@ -5,8 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [HEAD]
 
 ### Added
+- Option for insecure registry
 
 ### Changed
+- Update about page with links to license and changelog.
 
 ### Fixed
 
