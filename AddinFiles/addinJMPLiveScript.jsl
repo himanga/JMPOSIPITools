@@ -1,8 +1,6 @@
-/* About: Get OSI PI Data
+/* About: This file is used to create the script to load a 
+          a data table into JMP Live
 
-Get data from PI Web API. Requires version 2021 SP3 or higher of the PI Web API.
-
-Section: Globals
 */
 
 Names default to here( 1 );
@@ -17,3 +15,4 @@ If(
 	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
 	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 );
+ns:logusage( "Create JMP Live Script" );
