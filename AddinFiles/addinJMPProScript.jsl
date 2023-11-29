@@ -1,0 +1,17 @@
+/* About: Get OSI PI Data
+
+This creates the script to create PI data for the datatable in JMP Pro
+*/
+
+Names default to here( 1 );
+
+// About: Customize this file
+// Set this to the add-in ID
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+// About: get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+);

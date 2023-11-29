@@ -1,0 +1,471 @@
+Names Default To Here( 1 );
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+nsName = thisAddIn || ".addinnamespace";
+ns = Namespace( nsName );
+ns:baseURL = "https://346PIWEB/piwebapi/";
+ns:maxRows = 10000;
+ns:APIRowLimit = 150000;
+ns:maxCount =
+Minimum(
+	ns:maxRows,
+	ns:APIRowLimit
+);
+
+// Gets the data server WebId for the given serverName
+ns:DataServerIdRequest = function({serverName},
+	{DEFAULT LOCAL},
+	params = associativeArray();
+	params["name"] = serverName;
+	params["selectedFields"] = "WebId";
+	// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/dataserver/actions/getbyname.html
+	result = ns:GetRequest("dataservers", params);
+	if(!contains(result, "WebId"),
+		throw("No data server found with name '"||params["name"] ||"'.")
+	);
+	return(result["WebId"])
+);
+
+// Sends a GET request to the endpoint with the specified parameters
+ns:GetRequest = Function({endpoint, queryParameters},
+	{DEFAULT LOCAL},
+	baseURL = ns:baseURL;
+	if(!EndsWith(baseURL, "/"),
+		baseURL ||= "/"
+	);
+	request = Expr( New HTTP Request(
+		URL(baseURL || endpoint),
+		Method("GET"),
+		QueryString(queryParameters),
+		Username("NA\A139894"),
+		Password("Cheryl19641956_10b"),
+		Headers( {"Accept: application/json"} )
+
+	) );
+	request = Eval( request );
+	print(request);
+	result = request << send;
+	if(!(request << IsSuccess),
+		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
+		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
+		errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
+		//errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
+		Throw(errorMessage);
+	);
+	return(parseJSON(result));
+);
+
+// Finds points by tag name or description and returns their WebIDs and names
+ns:PointRequest = Function({dataServerID, searchStrings, searchField, matchType},
+	{DEFAULT LOCAL},
+	if(!contains({"tag", "descriptor"}, searchField),
+		throw("'searchField' must be one of \!"tag\!" or \!"descriptor\!" in 'ns:PointRequest'.")
+	);
+	if(!contains({"Exact", "Starts with", "Ends with", "Contains"}, matchType),
+		throw("'matchType' must be one of \!"Exact\!", \!"Starts with\!", \!"Ends with\!" or \!"Contains\!" in 'ns:PointRequest'.")
+	);
+
+	// Add wildcards to searchString depending on matchType
+	for(i=1, i<=NItems(searchStrings), i++,
+		searchString = searchStrings[i];
+		match(matchType,
+			"Starts with", searchString = searchString || "*",
+			"Ends with", searchString = "*" || searchString,
+			"Contains", searchString = "*" || searchString || "*"
+		);
+		// Quote the searchString to allow white space
+		searchString = "\!"" || searchString || "\!"";
+		// Build the search query string
+		// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/topics/pipoint-search-query-syntax.html
+		searchString = "(" || searchField || ":" || searchString || ")";
+		searchStrings[i] = searchString;
+	);
+	// Combine all individual queries with ORs
+	searchQuery = ConcatItems(searchStrings, "OR");
+
+	params = associativeArray();
+	params["dataServerWebId"] = dataServerID;
+	params["query"] = searchQuery;
+	params["maxCount"] = ns:maxCount;
+	params["startIndex"] = 0;
+	pointIDs = {};
+	pointNames = {};
+	While(1,
+		// Repeat this query in batches of ns:maxCount number of points
+		// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/point/actions/getpointsbysearch.html
+		result = ns:GetRequest("points/search", params);
+
+		items = result["Items"];
+		for(i=1, i<=nItems(items), i++,
+			insertInto(pointIDs, items[i]["WebId"]);
+			insertInto(pointNames, items[i]["Name"]);
+		);
+
+		// Break if there are fewer points than the maximum allowed by the API or if the user's limit is reached
+		if(nItems(items) < ns:maxCount | nItems(pointIDs) >= ns:maxRows,
+			break()
+		);
+		// Start the next query at the next index
+		params["startIndex"] += ns:maxCount;
+	);
+
+	if(!nItems(pointIDs), throw("No matching PI points were found"));
+
+	return(pointIDs, pointNames)
+);
+// Get a list of interpolated values for the given pointID for all ranges provided
+// Example ranges: {{startdate1, enddate1}, {startdate2, enddate2}}
+// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getinterpolated.html
+ns:GetInterpolatedValues = function({pointID, ranges, interval},
+	{DEFAULT LOCAL},
+	parameters = AssociativeArray();
+	parameters["selectedFields"] = "Items";
+	parameters["interval"] = interval;
+
+	endpoint = "streams/" || pointID || "/interpolated";
+	interpolatedValues = {};
+	for(i=1, i<=nItems(ranges), i++,
+		parameters["startTime"] = ranges[i][1];
+		parameters["endTime"] = ranges[i][2];
+		result = ns:GetRequest(endpoint, parameters);
+		items = result["Items"];
+		InsertInto(interpolatedValues, items);
+
+		// Break if the user's limit is reached
+		If(nItems(interpolatedValues) >= ns:maxRows,
+			Break()
+		);
+	);
+	Return(interpolatedValues)
+);
+// Get a table of interpolated values for each point in pointIDs between start and end times at the specified sampling interval
+ns:GetInterpolatedValuesTable = function({pointIDs, pointNames, startTime, endTime, interval},
+	{DEFAULT LOCAL},
+	dt = NewTable("Interpolated Values",
+		NewColumn( "tag", Character),
+		NewColumn( "time",  Numeric, Format("m/d/y h:m:s"), InputFormat("m/d/y h:m:s")),
+		NewColumn( "value", Numeric),
+		NewColumn( "svalue", Character),
+		NewColumn( "status", Character)
+	);
+
+	ranges = ns:GetValidStartAndEndTimes(startTime, endTime, interval, endInclusive=0);
+
+	For(i=1, i<=NItems(pointIDs), i++,
+		interpolatedValues = ns:GetInterpolatedValues(pointIDs[i], ranges, interval);
+		pointName = pointNames[i];
+		For(j=1, j<=nItems(interpolatedValues), j++,
+			result = interpolatedValues[j];
+			row = Eval(EvalExpr(
+				{
+					tag = Expr(pointName),
+					time = Expr(ns:ParseDateString(result["Timestamp"])),
+					status = Expr(ns:ExtractStatus(result))
+				}
+			));
+			// Add Value to value or svalue depending on type
+			If(IsString(result["Value"]),
+				InsertInto(row, EvalExpr(svalue = Expr(result["Value"])))
+			,IsNumber(result["Value"]),
+				InsertInto(row, EvalExpr(value = Expr(result["Value"])))
+			);
+			dt << AddRows(row);
+		);
+	);
+	return(dt)
+);
+
+// Converts a JMP date to a UTC datestring
+ns:ToDateString = Function({date},
+	{DEFAULT LOCAL},
+	utcDate = date - ns:GetLocalTimeZoneDifference();
+	datestring = FormatDate(utcDate, "yyyy-mm-ddThh:mm:ss");
+	Return(datestring || "Z")
+);
+// Converts PI durations to a length in seconds. e.g. 1h-30m = 1800s
+ns:PiDurationToSeconds = function({piDurations},
+	{DEFAULT LOCAL},
+	piTimes = {};
+	for(i=1, i<=nItems(piDurations), i++,
+		// add each duration to a known time so the two can be compared
+		insertInto(piTimes, "t+"||piDurations[i]);
+	);
+	insertInto(piTimes, "t");
+	times = ns:PiTimeToTimestamp(piTimes, parseTimestamp=1);
+	t_time = times[NItems(times)];
+	durations = {};
+	for(i=1, i<nItems(times), i++,
+		InsertInto(durations, times[i]-t_time)
+	);
+	return(durations)
+);
+
+// Converts PI times to a timestamp that JMP can use
+// Optionally parse the timestamp into a JMP datetime
+ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
+	{DEFAULT LOCAL},
+	timestamps = {};
+	// Do an empty calculation at a each time just to get a Timestamp back
+	params = ["expression" => 1, "selectedFields" => "Items.Timestamp"];
+	for(i=1, i<=nItems(piTimes), i++,
+		params["time"] = piTimes[i];
+		result = ns:GetRequest("calculation/times/", params);
+		ts = result["Items"][1]["Timestamp"];
+		if(parseTimestamp,
+			ts = ns:ParseDateString(ts)
+		);
+		InsertInto(timestamps, ts);
+	);
+	Return(timestamps)
+);
+
+// Parses dates of the format returned by the web API and returns a local time
+ns:ParseDateString = Function({dateString},
+	{DEFAULT LOCAL},
+	If(EndsWith(dateString, "Z"),
+		// Z suffix means UTC time. Convert to local.
+		dateString = Left(dateString, Length(dateString) - 1);
+		localTime = ParseDate(dateString) + ns:GetLocalTimeZoneDifference();
+		Return(localTime)
+	,
+		Return(ParseDate(dateString))
+	);
+);
+
+ns:GetLocalTimeZoneDifference = function({},
+	{DEFAULT LOCAL},
+	try(
+		return(ns:timeDifference)
+	,
+		request = Expr( New HTTP Request(
+			URL(ns:baseURL),
+			Method("GET"),
+			UserName("NA\A139894"),
+			password("Cheryl19641956_10b"),
+			Headers( {"Accept: application/json"} )
+		) );
+
+		request = Eval( request );
+		request << Send;
+		headers = request << Get Response Headers();
+		utc = headers["date"];
+		timeDifference = Round((Today() - utc)/InHours(1)) * InHours(1);
+		// Store the time difference so this query only happens once
+		ns:timeDifference = timeDifference;
+		return(timeDifference)
+	)
+);
+
+// Converts PI times to a timestamp that JMP can use
+// Optionally parse the timestamp into a JMP datetime
+ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
+	{DEFAULT LOCAL},
+	timestamps = {};
+	// Do an empty calculation at a each time just to get a Timestamp back
+	params = ["expression" => 1, "selectedFields" => "Items.Timestamp"];
+	for(i=1, i<=nItems(piTimes), i++,
+		params["time"] = piTimes[i];
+		result = ns:GetRequest("calculation/times/", params);
+		ts = result["Items"][1]["Timestamp"];
+		if(parseTimestamp,
+			ts = ns:ParseDateString(ts)
+		);
+		InsertInto(timestamps, ts);
+	);
+	Return(timestamps)
+);
+
+/* Gets a comma separated list of statuses from a result like 
+["Timestamp" => "2022-10-14T18:29:23Z",
+ "UnitsAbbreviation" => "",
+ "Good" => true, "Questionable" => false,
+ "Substituted" => false,
+ "Annotated" => false,
+ "Value" => 98.22586]
+*/
+ns:ExtractStatus = Function({result},
+	{DEFAULT LOCAL},
+	statuses = {};
+	/* Sometimes Value comes back like below and indicates a status
+	"Value": {
+		"Name": "Shutdown",
+		"Value": 254,
+		"IsSystem": true
+	}
+	*/
+	If(IsAssociativeArray(result["Value"]) & contains(result["Value"], "Name"),
+		InsertInto(statuses, result["Value"]["Name"])
+	);
+	keys = {"Good", "Questionable", "Substituted", "Annotated"};
+	For(i=1, i<=nItems(keys), i++,
+		If(result[keys[i]], InsertInto(statuses, keys[i]))
+	);
+	Return(ConcatItems(statuses, ","))
+);
+
+
+// Breaks up a range from start to an end time for the given interval into several start and end times
+// to work around the hard API row limit of (endTime-startTime)/interval <= 150000
+ns:GetValidStartAndEndTimes = function({startTime, endTime, interval, endInclusive=1},
+	{DEFAULT LOCAL},
+	{interval} = ns:PiDurationToSeconds(evalList({interval}));
+	{startTime, endTime} = ns:PiTimeToTimestamp(evalList({startTime, endTime}), 1);
+	totalTime = endTime-startTime;
+	newStartTime = startTime;
+	newTimes = {};
+	while(1,
+		newEndTime = newStartTime + (interval * (ns:maxCount - 1 + endInclusive));
+		newTimeRange = evalList({ns:ToDateString(newStartTime), ns:ToDateString(newEndTime)});
+		insertInto(newTimes, evalList({newTimeRange}));
+		if(newEndTime-startTime >= totalTime,
+			// Make sure the last time is exactly the original endTime
+			newTimes[nItems(newtimes)][2] = ns:ToDateString(endTime);
+
+			// If the final range's duration is less than the interval, remove it from the list of ranges
+			If(endInclusive & endTime - newStartTime <= interval,
+				removeFrom(newTimes, -1)
+			);
+			Break()
+		);
+		newStartTime = newEndTime + if(endInclusive, 0, interval);
+	);
+	Return(newTimes)
+);
+
+serverid = ns:DataServerIdRequest( "346-pi-srv-1" );
+
+{pointIDs, pointNames} = ns:PointRequest(
+	serverid,
+	{"SINUSOID"},
+	"tag",
+	"Exact"
+);
+dtLong = ns:GetInterpolatedValuesTable(
+	pointIDs, pointNames, "t - 2d",
+	"*", "1h"
+);
+If(
+	!
+	Contains(
+		{"Point Info",
+		"Snapshot Values"},
+		"Interpolated Values"
+	),
+	dtCount = dtLong <<
+	summary(
+		group( :tag ),
+		"private"
+	);
+	rowCount =
+	Col Max(
+		Column(
+			dtCount,
+			"N Rows"
+		)
+	);
+	Close( dtCount, "nosave" );
+,
+	rowCount = N Rows( dtLong )
+);
+oldcn = {"SINUSOID"};
+oldcncorrected = oldcn;
+tableName = dtLong << getName;
+dtWide = dtLong <<
+Split(
+	Split By( :tag ),
+	Split(
+		{:value, :svalue, :status}
+	),
+	Group( :time ),
+	Remaining Columns( Drop All ),
+	Sort by Column Property
+);
+Close( dtLong, "nosave" );
+dtWide << setName( "Temporary" );
+For( i = 1, i <= N Cols( dtWide ),
+	i++,
+	cn =
+	Regex(
+		Column( dtWide, i ) <<
+		Get Name,
+		"((value )|(svalue )|(status ))?(.*)",
+		"\5"
+	);
+	If( !Is Missing( cn ),
+		pos =
+		Min( Loc( oldcn, cn ) );
+		If( pos > 0,
+			Column( dtWide, i )
+			 <<
+			Set Property(
+				"PI tag",
+				oldcncorrected[pos
+				]
+			);
+			Column( dtWide, i )
+			 <<
+			Set Property(
+				"PI Original Column Name",
+				Column(
+					dtWide,
+					i
+				) << Get Name
+			);
+			Column( dtWide, i )
+			 <<
+			Set Property(
+				"PI call type",
+				"Interpolated Values"
+			);
+			Column( dtWide, i )
+			 <<
+			Set Property(
+				"PI interval",
+				"1h"
+			);
+			Column( dtWide, i )
+			 <<
+			Set Property(
+				"PI Server",
+				"Clinton"
+			);
+			If(
+				Contains(
+					{"Average",
+					"Count", "Max",
+					"Min",
+					"Population Standard Deviation",
+					"Range",
+					"Standard Deviation",
+					"Totals"},
+					"Interpolated Values"
+				),
+				Column(
+					dtWide,
+					i
+				) <<
+				Set Property(
+					"PI step",
+					"1h"
+				);
+				Column(
+					dtWide,
+					i
+				) <<
+				Set Property(
+					"PI interval start offset",
+					"-" || "1h"
+				);
+				Column(
+					dtWide,
+					i
+				) <<
+				Set Property(
+					"PI interval end offset",
+					""
+				);
+			);
+		);
+	);
+);
+dtWide << setName(tableName);
+dt = Data Table(tableName);
