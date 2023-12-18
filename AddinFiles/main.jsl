@@ -271,12 +271,17 @@ UpdateOutput = function( {},
 		TimeStep << Set Text( TimeInterval  << Get Text );
 	);
 	
-	JSLout << set text( Char(BuildJSL()) );
+	JMPJSLout << set text( Char(BuildJMPJSL()));
+	LiveJSLout << set text( Char(BuildLiveJSL()));
 	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
-	wasOpen = obJSLScript << GetOpen;
-	obJSLScript << setopen(1);
-	JSLout << Reformat;
-	obJSLScript << setopen(wasOpen);
+	wasJMPOpen = obJSLScript << GetOpen;
+	wasLiveOpen = obLiveJSLScript << GetOpen;
+	obJMPJSLScript << setopen(1);
+	obLiveJSLScript << SetOpen(1);
+	JMPJSLout << Reformat;
+	LiveJSLout << Reformat;
+	obJMPJSLScript << setopen(wasJMPOpen);
+	obLiveJSLScript << SetOpen(wasLiveOpen);
 	
 	If( searchfield == "webID",
 		lb_matchtype << set(1); // Exact matches only
@@ -305,9 +310,105 @@ FieldFromLine = function( {field, line}, {r, rx},
 	return(r);
 );
 
+//Create JMP Live JSL script from options on the form.
+BuildLiveJSL = function( {}, {txt},
+	// Get inputs
+	serverName = tb_server << GetText;
+	querytype = rb_querytype << Get Selected;
+	searchfield = rb_SearchField << Get Selected;
+	cnformat = cb_cnformat << Get Selected;
+	matchType = rb_matchtype << Get Selected;
+	searchStrings = Words( TagList << Get Text, "\!N");
+	calculationBasis = rb_calctype << GetSelected;
+	startTime = TimeStart << GetText;
+	endTime = TimeEnd << GetText;
+	intervalTime = TimeInterval << GetText;
+	If(SeparateInterval << Get(1) == 0,
+		// Use the interval as the time step if there is no separate interval
+		stepTime = intervalTime
+	,
+		stepTime = TimeStep << GetText
+	);
+	TableFormat = rb_tblformat << getSelected;
+	
+	oldcn = ns:map(searchStrings,
+		function( {x}, Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) ) )
+	);
+	
+	newcn = ns:map(searchStrings,
+		function( {x}, FieldFromLine( cnformat, x || "\!N" ) )
+	);
+	
+	taggroups = ns:map(searchStrings,
+		function( {x}, FieldFromLine( "group", x || "\!N" ) )
+	);
 
-//Create JSL script from options on the form.
-BuildJSL = function( {}, {txt},
+	ColToSplit = If( 
+		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
+		{:value, :svalue, :status},
+		{:value}
+	);
+	// Insert all JSL needed to produce the intended table into this Glue expression
+	NewTblExpr = EvalExpr(Glue(
+		NamesDefaultToHere(1);
+		// Requires the addin's namespace
+		nsName = "com.github.himanga.JMPOSIPITools.addinnamespace";
+		ns = Namespace(nsName);
+		// Base URL to be used by all requests
+		ns:baseURL = expr(tb_BaseURL << getText);
+		// Max number if items returned used by all requests
+		ns:maxRows = expr(num(tb_maxrows << getText));
+		// Use the minumum of the user specified maxRows and the API Row limit as the number of rows to pull in a single request
+		ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
+		// Gets the data server's web ID based on the user's preferences
+		serverid = ns:DataServerIdRequest(expr(serverName));
+	));
+	// Gets the data server WebId for the given serverName
+	ns:DataServerIdRequest = function({serverName},
+		{DEFAULT LOCAL},
+		params = associativeArray();
+		params["name"] = serverName;
+		params["selectedFields"] = "WebId";
+		// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/dataserver/actions/getbyname.html
+		result = ns:GetRequest("dataservers", params);
+		if(!contains(result, "WebId"),
+			throw("No data server found with name '"||params["name"] ||"'.")
+		);
+		return(result["WebId"])
+	);
+
+	// Sends a GET request to the endpoint with the specified parameters
+	ns:GetRequest = Function({endpoint, queryParameters},
+		{DEFAULT LOCAL},
+		baseURL = ns:baseURL;
+		if(!EndsWith(baseURL, "/"),
+			baseURL ||= "/"
+		);
+		request = Expr( New HTTP Request(
+			URL(baseURL || endpoint),
+			Method("GET"),
+			QueryString(queryParameters),
+			Username("%_UID_%"),
+			Password("%_PWD_%"),
+			Headers( {"Accept: application/json"} )
+
+		) );
+		request = Eval( request );
+		print(request);
+		result = request << send;
+		if(!(request << IsSuccess),
+			errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
+			errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
+			errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
+			//errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
+			Throw(errorMessage);
+		);
+		return(parseJSON(result));
+	);
+	Return( NameExpr(NewTblExpr) );
+);
+//Create JMP JSL script from options on the form.
+BuildJMPJSL = function( {}, {txt},
 
 	// Get inputs
 	serverName = tb_server << GetText;
@@ -817,8 +918,24 @@ nw = New Window( "PI Web API Query Builder",
 					
 					V list box(
 						//JSL
-						obJSLScript = Outline Box( "JSL to Run Query",
-							JSLout = Script Box(
+						obJMPJSLScript = Outline Box( "JMP JSL to Run Query",
+							JMPJSLout = Script Box(
+								"", 750, 400
+							),
+							<< close;
+							<< outlinecloseorientation( "Vertical" )
+						),
+						Spacer Box( Size( 2, 2 ) ),
+						bbHelp( "This script is updated to reflect changes in the options in this window." ||
+							"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
+							"will be overwritten the next time any other value in the window is changed.",
+							HelpType = "stdoutline"
+						)
+					),
+						V list box(
+						//JSL
+						obLiveJSLScript = Outline Box( "JMP Live JSL to Run Query",
+							LiveJSLout = Script Box(
 								"", 750, 400
 							),
 							<< close;
@@ -831,6 +948,7 @@ nw = New Window( "PI Web API Query Builder",
 							HelpType = "stdoutline"
 						)
 					)
+					
 				)
 				
 			), //end of box with options
@@ -843,10 +961,10 @@ nw = New Window( "PI Web API Query Builder",
 					
 					ns:logusage( "Run query" );
 					
-					Eval( Parse( Eval Expr( Expr( JSLout << get text ) ) ) );
+					Eval( Parse( Eval Expr( Expr( JMPJSLout << get text ) ) ) );
 					
-					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"PI Data Source\!", ^JSLout << get text^ )" ) ) ) );
+					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"PI Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
+					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"PI Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
 					
 				), //end of 'OK' command button
 				
@@ -999,5 +1117,5 @@ UpdateOutput();
 
 //Open script windows if user pref is set
 If( ns:UserPref["Open_Script_Windows"] == "yes",
-	obJSLScript << Set Open;
+	obJMPJSLScript << Set Open;
 );
