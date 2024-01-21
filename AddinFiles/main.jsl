@@ -155,7 +155,7 @@ DefaultTableFormat = function( {},
 		rb_tblformat << Set( 1 ),
 		
 		lb_querytimes << Visibility("visible");
-		rb_tblformat << Set( 2 );,
+		rb_tblformat << Set( 2 );
 	);
 	
 );
