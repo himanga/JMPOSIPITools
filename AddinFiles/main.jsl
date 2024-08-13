@@ -1308,7 +1308,7 @@ BuildLiveJSL = function( {}, {txt},
 debug = 0;
 
 //window box, all code is inside this box
-nw = New Window( "PI Web API Query Builder(JMP Desktop Only)",
+nw = New Window( "PI Web API Query Builder",
 
 	//box to hold spacers on left and right side of data
 	H List Box ( 

@@ -1,0 +1,33 @@
+<!-- JMP Add-In Builder created --><jm:menu_and_toolbar_customizations xmlns:jm="http://www.jmp.com/ns/menu" version="3">
+  <jm:insert_in_main_menu>
+    <jm:insert_in_menu>
+      <jm:name>Add-Ins</jm:name>
+      <jm:insert_after>
+        <jm:name></jm:name>
+        <jm:menu>
+          <jm:name>JMP OSI PI DATA</jm:name>
+          <jm:caption>JMP OSI PI Data</jm:caption>
+		  <jm:command>
+		    <jm:name>JMP OSI PI DATA</jm:name>
+		    <jm:caption>JMP OSI PI Data</jm:caption>
+		    <jm:action type="path">$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\main.jsl</jm:action>
+		    <jm:tip>Build queries to get data from a PI server</jm:tip>
+		    <jm:icon type="path">$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\pi.png</jm:icon>
+		  </jm:command>
+          <jm:command>
+            <jm:name>USER PREFERENCES</jm:name>
+            <jm:caption>User Preferences</jm:caption>
+            <jm:action type="path">$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl</jm:action>
+            <jm:icon type="none"></jm:icon>
+          </jm:command>
+          <jm:command>
+            <jm:name>ABOUT</jm:name>
+            <jm:caption>About</jm:caption>
+            <jm:action type="path">$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinAbout.jsl</jm:action>
+            <jm:icon type="none"></jm:icon>
+          </jm:command>
+        </jm:menu>
+      </jm:insert_after>
+    </jm:insert_in_menu>
+  </jm:insert_in_main_menu>
+</jm:menu_and_toolbar_customizations>
