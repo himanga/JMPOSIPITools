@@ -260,7 +260,8 @@ UpdateOutput = function( {},
 		lb_CalcBasis << Visibility("visible");
 		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
-		lb_longwide << Visibility("visible");JMPJSLout
+		lb_longwide << Visibility("visible");
+		JMPJSLout
 	);
 
 	//If step and interval times are linked, update the interval time
