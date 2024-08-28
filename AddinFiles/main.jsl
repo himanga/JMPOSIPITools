@@ -1298,10 +1298,12 @@ BuildLiveJSL = function( {}, {txt},
 			)
 		);
 		InsertInto( NewTblExpr , Eval Expr(
-			dt = new Table("test");
+			dt = new Table("TempValue");
 			dt = DataTable(tableName);
+			NoteToUser = "Add your script here, and make sure dt is the last line in your script";
 			dt;
 		));
+		
 		Return( NameExpr(NewTblExpr) );
 	);
 );
