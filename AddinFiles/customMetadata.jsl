@@ -10,6 +10,6 @@ Requires setup of PI ODBC, OLEDB, and DAS." ),
 		List( "developeremail", "message me on the JMP community or github" ),
 		List( "id", "com.github.himanga.JMPOSIPITools" ),
 		List( "name", "JMP OSI PI Tools" ),
-		List( "state", "DEV" )
+		List( "state", "PROD" )
 	)
 )
