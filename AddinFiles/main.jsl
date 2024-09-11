@@ -1297,10 +1297,19 @@ BuildLiveJSL = function( {}, {txt},
 				))
 			)
 		);
-		InsertInto( NewTblExpr , Eval Expr(
-			dt = new Table("TempValue");
+		InsertInto( NewTblExpr , Expr(
+			dt = new Table("TempValueToMakeJMPLiveWork");
 			dt = DataTable(tableName);
-			NoteToUser = "Add your script here, and make sure dt is the last line in your script";
+			Note To Users = "\[
+			
+			Add your script after these comments.
+			 - Change any data table references to 'dt' as in the example below
+			 - Make sure dt; is the last line of the script
+			
+			Example:
+			dt:value SINUSOID << Set Property( "Spec Limits", {LSL( -50 ), USL( 50 ), Show Limits( 0 )} );
+			dt;
+			]\";
 			dt;
 		));
 		
