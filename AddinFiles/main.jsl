@@ -375,12 +375,18 @@ BuildJMPJSL = function( {live=0}, {txt},
 	if(
 		live==1,
 		// Requires a complete copy of the add in namespace
-		nsLive = parse(substitute(char(name expr(ns)),"addinnamespace","addinnamespaceLive"));
-		nsLive << Remove( "DefaultPref" );
-		nsLive << Remove( "UserPref" );
+		
+		nsliveContents = ns << Get Contents;
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
+		nsLiveContentsList = transform each({s, i}, nsliveContents,
+			e = Eval Expr( ( Assign( expr( name expr(s[1]) ), expr( name expr(s[2])) ) ) );
+			name expr(e)
+		);
+		nsLiveExpr = Eval Expr( nsLive = New Namespace("com.github.himanga.JMPOSIPITools.addinnamespaceLive", expr( name expr( nsLiveContentsList ) ) ) );
 		InsertInto(NewTblExpr, EvalExpr(
 			thisAddIn = "com.github.himanga.addinnamespaceLive";
-			ns = expr( name expr( nsLive ) );
+			ns = expr( name expr( nsLiveExpr ) );
 			ns:live=1;
 		)),
 		InsertInto(NewTblExpr, EvalExpr(

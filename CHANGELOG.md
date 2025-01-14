@@ -7,9 +7,10 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 ### Changed
-- Modified JMP Live script to include the entire add-in namespace - so easier to combine types of queries.
+- Modified JMP Live script to include the entire add-in namespace - easier to create a script including types of queries.
 
 ### Fixed
+- API error for some all archived value data pulls.
 
 ## [0.11]
 
