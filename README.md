@@ -34,3 +34,4 @@ About: Steps
 
 ## Contributors
 - [Predictum Inc.](https://predictum.com/)
+- [Jonathan Austin](jonathanrobaustin@gmail.com
