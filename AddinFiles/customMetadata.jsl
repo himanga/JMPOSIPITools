@@ -5,11 +5,11 @@ Associative Array(
 Requires setup of PI ODBC, OLEDB, and DAS." ),
 		List( "addinVersion", 0.13 ),
 		List( "author", "Isaac Himanga" ),
-		List( "buildDate", 3755777768 ),
+		List( "buildDate", 3755777769 ),
 		List( "developer", "Isaac Himanga" ),
 		List( "developeremail", "message me on the JMP community or github" ),
 		List( "id", "com.github.himanga.JMPOSIPITools" ),
 		List( "name", "JMP OSI PI Tools" ),
-		List( "state", "PROD" )
+		List( "state", "DEV" )
 	)
 )
