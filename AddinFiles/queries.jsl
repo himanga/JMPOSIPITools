@@ -36,11 +36,20 @@ ns:GetLocalTimeZoneDifference = function({},
 	try(
 		return(ns:timeDifference)
 	,
-		request = Expr( New HTTP Request(
-			URL(ns:baseURL),
-			Method("GET"),
-			password(":")
-		) );
+		if(
+			ns:live==1,
+			request = Expr( New HTTP Request(
+				URL(ns:baseURL),
+				Method("GET"),
+				Username("%_UID_%"),
+				Password("%_PWD_%"),
+			) ),
+			request = Expr( New HTTP Request(
+				URL(ns:baseURL),
+				Method("GET"),
+				password(":")
+			) );
+		);
 		if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
 			Insert Into(request, Expr( Secure(0)) );
 		);
@@ -148,13 +157,25 @@ ns:GetRequest = Function({endpoint, queryParameters},
 	if(!EndsWith(baseURL, "/"),
 		baseURL ||= "/"
 	);
-	request = Expr( New HTTP Request(
-		URL(baseURL || endpoint),
-		Method("GET"),
-		QueryString(queryParameters),
-		Headers( {"Accept: application/json"} ),
-		Password(":")
-	) );
+	if(
+		ns:live==1,
+		request = Expr( New HTTP Request(
+			URL(baseURL || endpoint),
+			Method("GET"),
+			QueryString(queryParameters),
+			Headers( {"Accept: application/json"} ),
+			Username("%_UID_%"),
+			Password("%_PWD_%")
+		) );,
+		request = Expr( New HTTP Request(
+			URL(baseURL || endpoint),
+			Method("GET"),
+			QueryString(queryParameters),
+			Headers( {"Accept: application/json"} ),
+			Password(":")
+		) );
+	);
+	
 	if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
 		Insert Into(request, Expr(Secure(0)));
 	);

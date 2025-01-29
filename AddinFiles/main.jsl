@@ -283,7 +283,7 @@ UpdateOutput = function( {},
 	obJMPJSLScript << setopen(wasJMPOpen);
 
 	// JMP Live Script
-	LiveJSLout << set text( Char(BuildLiveJSL()));
+	LiveJSLout << set text( Char(BuildJMPJSL(live=1)));
 	wasLiveOpen = obLiveJSLScript << GetOpen;
 	obLiveJSLScript << SetOpen(1);
 	LiveJSLout << Reformat;
@@ -316,7 +316,7 @@ FieldFromLine = function( {field, line}, {r, rx},
 );
 
 //Create JMP JSL script from options on the form.
-BuildJMPJSL = function( {}, {txt},
+BuildJMPJSL = function( {live=0}, {txt},
 
 	// Get inputs
 	serverName = tb_server << GetText;
@@ -355,17 +355,52 @@ BuildJMPJSL = function( {}, {txt},
 		{:value}
 	);
 
-	// Insert all JSL needed to produce the intended table into this Glue expression
+	// Insert all JSL needed to produce the intended table into this expression
 	NewTblExpr = EvalExpr(Glue(
 		NamesDefaultToHere(1);
-		Message = "This script works only for JMP Desktop";
-		// Requires the addin's namespace
-		thisAddIn = "com.github.himanga.JMPOSIPITools";
-		If(!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
-			ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
-			ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+		 if(
+			live==1,
+		 	"This script is intended to work in JMP Live.  It will likely not \!Nwork in the desktop version of JMP or in Citrix because it needs different credentials.\!N\!N",
+			"This script is intended to work in the desktop version of JMP.\!NIt will likely not work in JMP Live because it is missing function\!Ndefinitions and needs different credentials..\!N\!N"
+		 ) ||
+		 "The top part (here through another note similar to this one) of \!Nthe script contains a bunch of generic functions that need\!N" ||
+		 "to be defined once in an update script, the bottom part\!Ncontains the specific call for this data.\!N\!N" ||
+		 "Copy and paste the top part once, and then customize the bottom \!Npart as needed for multiple data pulls, to manipulate data\!N" ||
+		 "and to build reports.\!N\!N" ||
+		 "Start of the generic function definition." ||
+		 "\!N\!N**************************************\!N");
+	));
+	
+	if(
+		live==1,
+		// Requires a complete copy of the add in namespace
+		
+		nsliveContents = ns << Get Contents;
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
+		nsLiveContentsList = transform each({s, i}, nsliveContents,
+			e = Eval Expr( ( Assign( expr( name expr(s[1]) ), expr( name expr(s[2])) ) ) );
+			name expr(e)
 		);
+		nsLiveExpr = Eval Expr( nsLive = New Namespace("com.github.himanga.JMPOSIPITools.addinnamespaceLive", expr( name expr( nsLiveContentsList ) ) ) );
+		InsertInto(NewTblExpr, EvalExpr(
+			thisAddIn = "com.github.himanga.addinnamespaceLive";
+			ns = expr( name expr( nsLiveExpr ) );
+			ns:live=1;
+		)),
+		InsertInto(NewTblExpr, EvalExpr(
+			// Requires a reference to the addin's namespace
+			thisAddIn = "com.github.himanga.JMPOSIPITools";
+			If(!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+				ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+				ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+			);
+			ns:live=0;
+		))
+	);
 
+	InsertInto(NewTblExpr, EvalExpr(
 		// Base URL to be used by all requests
 		ns:baseURL = expr(tb_BaseURL << getText);
 		// Max number if items returned used by all requests
@@ -375,6 +410,10 @@ BuildJMPJSL = function( {}, {txt},
 		ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
 		// Gets the data server's web ID based on the user's preferences
 		serverid = ns:DataServerIdRequest(expr(serverName));
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+		 "End of the generic function definition.\!N\!N" ||
+		 "Start of script to pull this specific data." ||
+		 "\!N\!N**************************************\!N");
 	));
 
 	// Get pointIDs
@@ -440,6 +479,7 @@ BuildJMPJSL = function( {}, {txt},
 		);
 		oldcn = expr(oldcn);
 		oldcncorrected = oldcn;
+		tableName = dtLong << getName;
 	));
 
 	If(cnformat != "tag",
@@ -458,7 +498,6 @@ BuildJMPJSL = function( {}, {txt},
 	If( TableFormat == "Wide",
 		// Make wide table
 		InsertInto(NewTblExpr, EvalExpr(
-			tableName = dtLong << getName;
 			dtWide = dtLong << Split(
 				Split By( :tag ),
 				Split( expr(ColToSplit) ),
@@ -493,829 +532,24 @@ BuildJMPJSL = function( {}, {txt},
 			))
 		)
 	);
+
+	InsertInto( NewTblExpr , EvalExpr(
+		dt = DataTable(tableName);
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+			"End of the script to pull this specific data.\!N\!N" ||
+			"Add scripts to manipulate the table or build reports after these comments.\!N" ||
+			"- Change any data table references to 'dt' as in the example below\!N" ||
+			"- Make sure dt; is the last line of the script\!N\!N" ||
+			"Example:\!N" ||
+			"\[dt:value SINUSOID << Set Property( "Spec Limits", {LSL( -50 ), USL( 50 ), Show Limits( 0 )} );]\\!N" ||
+			"dt;" ||
+			"\!N\!N**************************************\!N");
+		dt;
+	));
+
 	Return( NameExpr(NewTblExpr) );
 );
 
-//Create JMP Live JSL script from options on the form.
-BuildLiveJSL = function( {}, {txt},
-
-	// Get inputs
-	serverName = tb_server << GetText;
-	querytype = rb_querytype << Get Selected;
-	searchfield = rb_SearchField << Get Selected;
-	cnformat = cb_cnformat << Get Selected;
-	matchType = rb_matchtype << Get Selected;
-	searchStrings = Words( TagList << Get Text, "\!N");
-	calculationBasis = rb_calctype << GetSelected;
-	startTime = TimeStart << GetText;
-	endTime = TimeEnd << GetText;
-	intervalTime = TimeInterval << GetText;
-	If(SeparateInterval << Get(1) == 0,
-		// Use the interval as the time step if there is no separate interval
-		stepTime = intervalTime
-	,
-		stepTime = TimeStep << GetText
-	);
-	TableFormat = rb_tblformat << getSelected;
-	
-	oldcn = ns:map(searchStrings,
-		function( {x}, Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) ) )
-	);
-	
-	newcn = ns:map(searchStrings,
-		function( {x}, FieldFromLine( cnformat, x || "\!N" ) )
-	);
-	
-	taggroups = ns:map(searchStrings,
-		function( {x}, FieldFromLine( "group", x || "\!N" ) )
-	);
-
-	ColToSplit = If( 
-		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
-		{:value, :svalue, :status},
-		{:value}
-	);
-	// If QueryType is not Point Info
-	// Insert all JSL needed to produce the intended table into this Glue expression
-	// Gets the data server WebId for the given serverName
-	// Else enter a Message saying this is not valid for JMP Live
-	if(querytype == "Point Info",
-		NewTblExpr = Expr(Message = "Point Info is not valid for JMP Live";),
-//---------------------------------------------------------------------------------------------------------------------
-	// Common Procedures for all query types
-//---------------------------------------------------------------------------------------------------------------------
-		NewTblExpr = Expr(	
-			NamesDefaultToHere(1);
-			message = "This script works only for the JMP Live Server";
-			// Requires the addin's namespace
-			nsLiveName = "com.github.himanga.JMPOSIPITools.JMPLiveNameSpace";
-			If(!Namespace Exists(nsLiveName),
-			nsLive = New Namespace(nsLiveName),
-			nsLive = Namespace(nsLiveName)
-			);
-			nsName = "com.github.himanga.JMPOSIPITools.addinnamespace";
-			If(!Namespace Exists(nsName),
-				ns = New Namespace(nsName),
-				ns = Namespace(nsName)
-			);
-			nsLive:DataServerIdRequest = function({serverName},
-			{DEFAULT LOCAL},
-			params = associativeArray();
-			params["name"] = serverName;
-			params["selectedFields"] = "WebId";
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/dataserver/actions/getbyname.html
-			result = nsLive:GetRequest("dataservers", params);
-			if(!contains(result, "WebId"),
-				throw("No data server found with name '"||params["name"] ||"'.")
-			);
-			return(result["WebId"])
-			);
-			// Sends a GET request to the endpoint with the specified parameters
-			nsLive:GetRequest = Function({endpoint, queryParameters},
-				{DEFAULT LOCAL},
-				baseURL = ns:baseURL;
-				if(!EndsWith(baseURL, "/"),
-					baseURL ||= "/"
-				);
-				request = Expr( 
-					New HTTP Request(
-					URL(baseURL || endpoint),
-					Method("GET"),
-					QueryString(queryParameters),
-					Username("%_UID_%"),
-					Password("%_PWD_%"),
-					Headers( {"Accept: application/json"} )
-					) 
-				);
-				request = Eval( request );
-				result = request << send;
-				if(!(request << IsSuccess),
-					errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
-					errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
-					errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
-					//errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
-					Throw(errorMessage);
-				);
-				return(parseJSON(result));
-			);
-			// Gets the data server WebId for the given serverName
-			nsLive:DataServerIdRequest = function({serverName},
-				{DEFAULT LOCAL},
-				params = associativeArray();
-				params["name"] = serverName;
-				params["selectedFields"] = "WebId";
-				// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/dataserver/actions/getbyname.html
-				result = nsLive:GetRequest("dataservers", params);
-				if(!contains(result, "WebId"),
-					throw("No data server found with name '"||params["name"] ||"'.")
-				);
-				return(result["WebId"])
-			);
-			// Finds points by tag name or description and returns their WebIDs and names
-			nsLive:PointRequest = Function({dataServerID, searchStrings, searchField, matchType},
-				{DEFAULT LOCAL},
-				if(!contains({"tag", "descriptor"}, searchField),
-					throw("'searchField' must be one of \!"tag\!" or \!"descriptor\!" in 'ns:PointRequest'.")
-				);
-				if(!contains({"Exact", "Starts with", "Ends with", "Contains"}, matchType),
-					throw("'matchType' must be one of \!"Exact\!", \!"Starts with\!", \!"Ends with\!" or \!"Contains\!" in 'ns:PointRequest'.")
-				);
-
-				// Add wildcards to searchString depending on matchType
-				for(i=1, i<=NItems(searchStrings), i++,
-					searchString = searchStrings[i];
-					match(matchType,
-						"Starts with", searchString = searchString || "*",
-						"Ends with", searchString = "*" || searchString,
-						"Contains", searchString = "*" || searchString || "*"
-					);
-					// Quote the searchString to allow white space
-					searchString = "\!"" || searchString || "\!"";
-					// Build the search query string
-					// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/topics/pipoint-search-query-syntax.html
-					searchString = "(" || searchField || ":" || searchString || ")";
-					searchStrings[i] = searchString;
-				);
-				// Combine all individual queries with ORs
-				searchQuery = ConcatItems(searchStrings, "OR");
-
-				params = associativeArray();
-				params["dataServerWebId"] = dataServerID;
-				params["query"] = searchQuery;
-				params["maxCount"] = ns:maxCount;
-				params["startIndex"] = 0;
-				pointIDs = {};
-				pointNames = {};
-				While(1,
-					// Repeat this query in batches of ns:maxCount number of points
-					// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/point/actions/getpointsbysearch.html
-					result = nsLive:GetRequest("points/search", params);
-
-					items = result["Items"];
-					for(i=1, i<=nItems(items), i++,
-						insertInto(pointIDs, items[i]["WebId"]);
-						insertInto(pointNames, items[i]["Name"]);
-					);
-
-					// Break if there are fewer points than the maximum allowed by the API or if the user's limit is reached
-					if(nItems(items) < ns:maxCount | nItems(pointIDs) >= ns:maxRows,
-						break()
-					);
-					// Start the next query at the next index
-					params["startIndex"] += ns:maxCount;
-				);
-
-				if(!nItems(pointIDs), throw("No matching PI points were found"));
-
-				return(pointIDs, pointNames)
-			);
-			// Parses dates of the format returned by the web API and returns a local time
-			nsLive:ParseDateString = Function({dateString},
-				{DEFAULT LOCAL},
-				If(EndsWith(dateString, "Z"),
-					// Z suffix means UTC time. Convert to local.
-					dateString = Left(dateString, Length(dateString) - 1);
-					localTime = ParseDate(dateString) + nsLive:GetLocalTimeZoneDifference();
-					Return(localTime)
-				,
-					Return(ParseDate(dateString))
-				);
-			);
-
-			nsLive:GetLocalTimeZoneDifference = Function({},
-			{DEFAULT LOCAL},
-			try(
-				return(nsLive:timeDifference)
-			,
-				request = Expr( NewHTTPRequest(
-					URL(ns:baseURL),
-					Method("GET"),
-					UserName("%_UID_%"),
-					password("%_PWD_%"),
-					Headers({"Accept: application/json"})
-				));
-				request = Eval(request);
-				request << Send;
-				headers = request << Get Response Headers();
-				utc = headers["date"];
-				timeDifference = Round((Today() - utc)/InHours(1)) * InHours(1);
-				// Store the time difference so this query only happens once
-				nsLive:timeDifference = timeDifference;
-				return(timeDifference)
-				)
-			);
-		);
-	//---------------------------------------------------------------------------------------------------------------------------------
-	// Query specific procedures
-	//----------------------------------------------------------------------------------------------------------------------------------
-		ValidExpr = expr(
-			nsLive:GetValidStartAndEndTimes = function({startTime, endTime, interval, endInclusive=1},
-				{DEFAULT LOCAL},
-				{interval} = nsLive:PiDurationToSeconds(evalList({interval}));
-				{startTime, endTime} = nsLive:PiTimeToTimestamp(evalList({startTime, endTime}), 1);
-				totalTime = endTime-startTime;
-				newStartTime = startTime;
-				newTimes = {};
-				while(1,
-					newEndTime = newStartTime + (interval * (ns:maxCount - 1 + endInclusive));
-					newTimeRange = evalList({nsLive:ToDateString(newStartTime), nsLive:ToDateString(newEndTime)});
-					insertInto(newTimes, evalList({newTimeRange}));
-					if(newEndTime-startTime >= totalTime,
-						// Make sure the last time is exactly the original endTime
-						newTimes[nItems(newtimes)][2] = nsLive:ToDateString(endTime);
-
-						// If the final range's duration is less than the interval, remove it from the list of ranges
-						If(endInclusive & endTime - newStartTime <= interval,
-							removeFrom(newTimes, -1)
-						);
-						Break()
-					);
-					newStartTime = newEndTime + if(endInclusive, 0, interval);
-				);
-				Return(newTimes)
-			);
-		);
-		// Converts PI durations to a length in seconds. e.g. 1h-30m = 1800s
-		durationExpr = expr(nsLive:PiDurationToSeconds = function({piDurations},
-				{DEFAULT LOCAL},
-				piTimes = {};
-				for(i=1, i<=nItems(piDurations), i++,
-					// add each duration to a known time so the two can be compared
-					insertInto(piTimes, "t+"||piDurations[i]);
-				);
-				insertInto(piTimes, "t");
-				times = nsLive:PiTimeToTimestamp(piTimes, parseTimestamp=1);
-				t_time = times[NItems(times)];
-				durations = {};
-				for(i=1, i<nItems(times), i++,
-					InsertInto(durations, times[i]-t_time)
-				);
-				return(durations)
-			);
-		);
-
-		PiTimeTimeStampExpr = Expr(	
-			// Converts PI times to a timestamp that JMP can use
-			// Optionally parse the timestamp into a JMP datetime
-			nsLive:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
-				{DEFAULT LOCAL},
-				timestamps = {};
-				// Do an empty calculation at a each time just to get a Timestamp back
-				params = ["expression" => 1, "selectedFields" => "Items.Timestamp"];
-				for(i=1, i<=nItems(piTimes), i++,
-					params["time"] = piTimes[i];
-					result = nsLive:GetRequest("calculation/times/", params);
-					ts = result["Items"][1]["Timestamp"];
-					if(parseTimestamp,
-						ts = nsLive:ParseDateString(ts)
-					);
-					InsertInto(timestamps, ts);
-				);
-				Return(timestamps)
-			);
-		);
-		ExtractExpr = Expr(
-			/* Gets a comma separated list of statuses from a result like 
-			["Timestamp" => "2022-10-14T18:29:23Z",
-			"UnitsAbbreviation" => "",
-			"Good" => true, "Questionable" => false,
-			"Substituted" => false,
-			"Annotated" => false,
-			"Value" => 98.22586]
-			*/
-			nsLive:ExtractStatus = Function({result},
-				{DEFAULT LOCAL},
-				statuses = {};
-				/* Sometimes Value comes back like below and indicates a status
-				"Value": {
-					"Name": "Shutdown",
-					"Value": 254,
-					"IsSystem": true
-				}
-				*/
-				If(IsAssociativeArray(result["Value"]) & contains(result["Value"], "Name"),
-					InsertInto(statuses, result["Value"]["Name"])
-				);
-				keys = {"Good", "Questionable", "Substituted", "Annotated"};
-				For(i=1, i<=nItems(keys), i++,
-					If(result[keys[i]], InsertInto(statuses, keys[i]))
-				);
-				Return(ConcatItems(statuses, ","))
-			);
-		);
-		DateStringExpr = Expr(
-			// Converts a JMP date to a UTC datestring
-			nsLive:ToDateString = Function({date},
-				{DEFAULT LOCAL},
-				utcDate = date - nsLive:GetLocalTimeZoneDifference();
-				datestring = FormatDate(utcDate, "yyyy-mm-ddThh:mm:ss");
-				Return(datestring || "Z")
-			);
-		);
-		InterpolatedValuesExpr = Expr(
-			// Get a list of interpolated values for the given pointID for all ranges provided
-			// Example ranges: {{startdate1, enddate1}, {startdate2, enddate2}}
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getinterpolated.html
-			nsLive:GetInterpolatedValues = function({pointID, ranges, interval},
-				{DEFAULT LOCAL},
-				parameters = AssociativeArray();
-				parameters["selectedFields"] = "Items";
-				parameters["interval"] = interval;
-
-				endpoint = "streams/" || pointID || "/interpolated";
-				interpolatedValues = {};
-				for(i=1, i<=nItems(ranges), i++,
-					parameters["startTime"] = ranges[i][1];
-					parameters["endTime"] = ranges[i][2];
-					result = nsLive:GetRequest(endpoint, parameters);
-					items = result["Items"];
-					InsertInto(interpolatedValues, items);
-
-					// Break if the user's limit is reached
-					If(nItems(interpolatedValues) >= ns:maxRows,
-						Break()
-					);
-				);
-				Return(interpolatedValues)
-			);
-		);
-		InterpolatedTableExpr = expr(
-			// Get a table of interpolated values for each point in pointIDs between start and end times at the specified sampling interval
-			nsLive:GetInterpolatedValuesTable = function({pointIDs, pointNames, startTime, endTime, interval},
-				{DEFAULT LOCAL},
-				dt = NewTable("Interpolated Values",
-					NewColumn( "tag", Character),
-					NewColumn( "time",  Numeric, Format("m/d/y h:m:s"), InputFormat("m/d/y h:m:s")),
-					NewColumn( "value", Numeric),
-					NewColumn( "svalue", Character),
-					NewColumn( "status", Character)
-				);
-
-				ranges = nsLive:GetValidStartAndEndTimes(startTime, endTime, interval, endInclusive=0);
-
-				For(i=1, i<=NItems(pointIDs), i++,
-					interpolatedValues = nsLive:GetInterpolatedValues(pointIDs[i], ranges, interval);
-					pointName = pointNames[i];
-					For(j=1, j<=nItems(interpolatedValues), j++,
-						result = interpolatedValues[j];
-						row = Eval(EvalExpr(
-							{
-								tag = Expr(pointName),
-								time = Expr(nsLive:ParseDateString(result["Timestamp"])),
-								status = Expr(nsLive:ExtractStatus(result))
-							}
-						));
-						// Add Value to value or svalue depending on type
-						If(IsString(result["Value"]),
-							InsertInto(row, EvalExpr(svalue = Expr(result["Value"])))
-						,IsNumber(result["Value"]),
-							InsertInto(row, EvalExpr(value = Expr(result["Value"])))
-						);
-						dt << AddRows(row);
-					);
-				);
-				return(dt)
-			);
-		);
-		SnapshotExpr = Expr(
-			// Get a table of snapshot values for each point in pointIDs
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/streamset/actions/getendadhoc.html
-			nsLive:GetSnapshotValuesTable = function({pointIDs},
-				nsLive:BuildTableFromPointStreamSets(pointIDs, "end", [=>], "Snapshot Values")
-			);
-		);
-		BuildTableExpr = Expr(
-			// Common functionality for point stream endpoints to build a data table
-			// with tag, time, value, svalue, and status info for all points in pointIDs
-			// Uses adhoc endpoints of streamset to do a single bulk request rather than several individual requests
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/streamset.html
-			nsLive:BuildTableFromPointStreamSets = function({pointIDs, streamEndpoint, parameters, title},
-				{DEFAULT LOCAL},
-				dt = NewTable(title,
-					NewColumn( "tag", Character),
-					NewColumn( "time",  Numeric, Format("m/d/y h:m:s"), InputFormat("m/d/y h:m:s")),
-					NewColumn( "value", Numeric),
-					NewColumn( "svalue", Character),
-					NewColumn( "status", Character)
-				);
-				
-				If(!StartsWith(streamEndpoint, "/"), streamEndpoint = "/" || streamEndpoint);
-				endpoint = "streamsets" || streamEndpoint;
-				parameters["webId"] = pointIDs; // Pass in a list to make multiple webId parameters
-				parameters["selectedFields"] = "Items";
-				result = nsLive:GetRequest(endpoint, parameters);
-				points = result["Items"];
-				For(i=1, i<=NItems(points), i++,
-					point = points[i];
-					// Get the list of all results for the point
-					If(Contains(point, "Items"),
-						pointResults = point["Items"]
-					,// else a single item
-						pointResults = EvalList({point["Value"]})
-					);
-
-					// Add rows for all results for the point
-					For(j=1, j<=NItems(pointResults), j++,
-						pointResult = pointResults[j];
-						row = Eval(EvalExpr(
-							{
-								tag = Expr(point["Name"]),
-								time = Expr(nsLive:ParseDateString(pointResult["Timestamp"])),
-								status = Expr(nsLive:ExtractStatus(pointResult))
-							}
-						));
-						// Add Value to value or svalue depending on type
-						If(IsString(pointResult["Value"]),
-							InsertInto(row, EvalExpr(svalue = Expr(pointResult["Value"])))
-						,IsNumber(pointResult["Value"]),
-							InsertInto(row, EvalExpr(value = Expr(pointResult["Value"])))
-						);
-						dt << AddRows(row);
-					)
-				);
-				return(dt)
-			);
-		);
-		SummaryValues = expr(
-			// Get a list of summary values for the given pointID for all ranges provided
-			// Example ranges: {{startdate1, enddate1}, {startdate2, enddate2}}
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getsummary.html
-			nsLive:GetSummaryValues = function({pointID, ranges, interval, summaryType, calculationBasis},
-				{DEFAULT LOCAL},
-				parameters = AssociativeArray();
-				parameters["selectedFields"] = "Items.Value";
-				parameters["summaryType"] = summaryType;
-				parameters["calculationBasis"] = calculationBasis;
-				parameters["summaryDuration"] = interval;
-				parameters["timeType"] = "MostRecentTime";
-
-				endpoint = "streams/" || pointID || "/summary";
-				summaryValues = {};
-				for(i=1, i<=nItems(ranges), i++,
-					parameters["startTime"] = ranges[i][1];
-					parameters["endTime"] = ranges[i][2];
-					result = nsLive:GetRequest(endpoint, parameters);
-					items = result["Items"];
-					InsertInto(summaryValues, items);
-
-					// Break if the user's limit is reached
-					If(nItems(summaryValues) >= ns:maxRows,
-						Break()
-					);
-				);
-				Return(summaryValues)
-			);	
-		);
-		StepSummaryValues = Expr(
-			// Get a table of summary values for each point in pointIDs where a stepTime is provided.
-			// The rows of the table should be from startTime to endTime with increments of stepTime duration.
-			// The summary statistics should be calculated from each of these times (t) from t-interval to t
-			nsLive:GetSummaryValuesTableWithStepTime = Function({pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, stepTime},
-				{DEFAULT LOCAL},
-
-				// If the step time and interval are the same, it's as if there is no step time
-				If(interval == stepTime,
-					Return(nsLive:GetSummaryValuesTable(pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval))
-				);
-
-				if(calculationBasis != "TimeWeighted", throw("Step time is only supported with the 'TimeWeighted' calculation basis."));
-
-				// Get a table of intended times from startTime to endTime in stepTime increments
-				{intervalSeconds, stepTimeSeconds} = nsLive:PiDurationToSeconds(evalList({interval, stepTime}));
-				{startTimeSeconds, endTimeSeconds} = nsLive:PiTimeToTimestamp(evalList({startTime, endTime}), 1);
-				dtSummary = AsTable((startTimeSeconds::endTimeSeconds::stepTimeSeconds)`);
-				column(dtSummary, 1) << setName("time") << setDataType(Numeric, Format("m/d/y h:m:s"));
-
-				// Repeat summary value requests with the specified interval at different offsets
-				// to get summary values at all times in the above table
-				gcd = ns:GreatestCommonDivisor(intervalSeconds, stepTimeSeconds);
-				nOffsets = intervalSeconds / gcd;
-				for(i=1, i<=nOffsets, i++,
-					offsetStartTime = ns:ToDateString(startTimeSeconds - gcd * i);
-					// Get summary values for the offset start time
-					dtTemp = nsLive:GetSummaryValuesTable(pointIDs, pointNames, "Average", "TimeWeighted", offsetStartTime, endTime, interval, private=1);
-					// Join the summary values into the table of times
-					dtJoin = dtSummary << Join(
-						With(dtTemp),
-						Merge Same Name Columns,
-						Match Flag( 0 ),
-						By Matching Columns( :time = :time ),
-						Drop multiples( 0, 0 ),
-						Include Nonmatches( 1, 0 ),
-						Preserve main table order( 1 )
-					);
-					close(dtSummary, "nosave");
-					close(dtTemp, "nosave");
-					dtSummary = dtJoin;
-				);
-
-				dtSummary << setName("Summary Values - " || summaryType);
-				dtSummary << Sort(
-					By( :tag ),
-					Order( Ascending ),
-					ReplaceTable
-				);
-				dtSummary << newDataView;
-				Return(dtSummary)
-			);	
-		);
-		SummaryTable = Expr(
-			// Get a table of summary values for each point in pointIDs
-			nsLive:GetSummaryValuesTable = Function({pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, private=0},
-				{DEFAULT LOCAL},
-				eval(evalExpr(
-					dt = NewTable("Summary Values - " || summaryType,
-						NewColumn( "tag", Character),
-						NewColumn( "time",  Numeric, Format("m/d/y h:m:s"), InputFormat("m/d/y h:m:s")),
-						NewColumn( "value", Numeric),
-						expr(if(private, "private"))
-					);
-				));
-
-				ranges = nsLive:GetValidStartAndEndTimes(startTime, endTime, interval, endInclusive=1);
-
-				For(i=1, i<=NItems(pointIDs), i++,
-					pointName = pointNames[i];
-					pointResults = nsLive:GetSummaryValues(pointIDs[i], ranges, interval, summaryType, calculationBasis);
-					For(j=1, j<=NItems(pointResults), j++,
-						pointResult = pointResults[j];
-						row = Eval(EvalExpr(
-							{
-								tag = Expr(pointName),
-								time = Expr(nsLive:ParseDateString(pointResult["Value"]["Timestamp"])),
-								value = Expr(pointResult["Value"]["Value"])
-							}
-						));
-						dt << AddRows(row);
-					);
-				);
-				Return(dt)
-			);	
-		);
-		ArchiveExpr = Expr(
-			// Get an list of archive values for the given pointID between start and end times
-			// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getrecorded.html
-			nsLive:GetArchiveValues = function({pointID, startTime, endTime},
-				{DEFAULT LOCAL},
-				parameters = AssociativeArray();
-				parameters["selectedFields"] = "Items";
-				parameters["maxCount"] = ns:maxCount;
-				parameters["startTime"] = startTime;
-				parameters["endTime"] = endTime;
-
-				endpoint = "streams/" || pointID || "/recorded";
-				archiveValues = {};
-				While(1,
-					result = nsLive:GetRequest(endpoint, parameters);
-					items = result["Items"];
-					InsertInto(archiveValues, items);
-
-					// Break if there are fewer points than the maximum allowed by the API or if the user's limit is reached
-					If(nItems(items) < ns:maxCount | nItems(archiveValues) >= ns:maxRows,
-						Break()
-					);
-					// Otherwise, increase the startTime parameter to be the last end time + 1ms so that the last time is not included again
-					lastTime = items[nItems(items)]["Timestamp"] || "+1ms";
-					parameters["startTime"] = lastTime;
-				);
-				Return(archiveValues)
-			);
-		);
-		ArchiveTableExpr = Expr(
-			// Get a table of archive values for each point in pointIDs between start and end times
-			nsLive:GetArchiveValuesTable = function({pointIDs, pointNames, startTime, endTime},
-				{DEFAULT LOCAL},
-				dt = NewTable("Archive Values",
-					NewColumn( "tag", Character),
-					NewColumn( "time",  Numeric, Format("m/d/y h:m:s"), InputFormat("m/d/y h:m:s")),
-					NewColumn( "value", Numeric),
-					NewColumn( "svalue", Character),
-					NewColumn( "status", Character)
-				);
-
-				// Fix start and end times so all requests use the same times where e.g. if the endTime is *
-				if(nItems(pointIDs) > 1,
-					{fixedStartTime, fixedEndTime} = nsLive:PiTimeToTimestamp(evalList({startTime, endTime}));
-				,
-					fixedStartTime = startTime;
-					fixedEndTime = endTime;
-				);
-
-				For(i=1, i<=NItems(pointIDs), i++,
-					archiveValues = ns:GetArchiveValues(pointIDs[i], fixedStartTime, fixedEndTime);
-					pointName = pointNames[i];
-					For(j=1, j<=nItems(archiveValues), j++,
-						result = archiveValues[j];
-						row = Eval(EvalExpr(
-							{
-								tag = Expr(pointName),
-								time = Expr(ns:ParseDateString(result["Timestamp"])),
-								status = Expr(ns:ExtractStatus(result))
-							}
-						));
-						// Add Value to value or svalue depending on type
-						If(IsString(result["Value"]),
-							InsertInto(row, EvalExpr(svalue = Expr(result["Value"])))
-						,IsNumber(result["Value"]),
-							InsertInto(row, EvalExpr(value = Expr(result["Value"])))
-						);
-						dt << AddRows(row);
-					);
-				);
-				return(dt)
-			);
-		);
-		AggStatus = or(querytype=="Average",
-						querytype=="Count",
-						querytype=="Max",
-						querytype=="Min",
-						querytype=="Population Standard Deviation",
-						querytype=="Range",
-						querytype=="Standard Deviation",
-						querytype=="Totals");
-
-		NewQueryType =if(AggStatus,"Aggregate Values",querytype);
-
-		// Calls and inserts the specific procedures required for the query type
-		Match(NewQueryType,
-		"Snapshot Values",
-			InsertInto(NewTblExpr,NameExpr(ExtractExpr));
-			InsertInto(NewTblExpr,NameExpr(SnapshotExpr));
-			InsertInto(NewTblExpr, NameExpr(BuildTableExpr));,
-		"Interpolated Values",
-			InsertInto( NewTblExpr,NameExpr(ValidExpr));
-			InsertInto( NewTblExpr,NameExpr(durationExpr));
-			InsertInto( NewTblExpr,NameExpr(PiTimeTimeStampExpr));
-			InsertInto( NewTblExpr,NameExpr(ExtractExpr));
-			InsertInto( NewTblExpr,NameExpr(DateStringExpr));
-			InsertInto( NewTblExpr,NameExpr(InterpolatedValuesExpr));
-			InsertInto( NewTblExpr, NameExpr(InterpolatedTableExpr)),
-		"Aggregate Values",
-			InsertInto( NewTblExpr,NameExpr(DateStringExpr));
-			InsertInto( NewTblExpr,NameExpr(PiTimeTimeStampExpr));
-			InsertInto( NewTblExpr,NameExpr(ValidExpr));
-			InsertInto( NewTblExpr,NameExpr(durationExpr));
-			InsertInto(NewTblExpr, NameExpr(SummaryValues));
-			InsertInto(NewTblExpr, NameExpr(StepSummaryValues));
-			InsertInto(NewTblExpr, NameExpr(SummaryTable)),
-		"All Archived Values",
-			InsertInto( NewTblExpr,NameExpr(DateStringExpr));
-			InsertInto( NewTblExpr,NameExpr(PiTimeTimeStampExpr));
-			InsertInto(NewTblExpr,NameExpr(ExtractExpr));
-			InsertInto(NewTblExpr,NameExpr(ArchiveExpr));
-			InsertInto(NewTblExpr,NameExpr(ArchiveTableExpr));,
-		throw("Unknown query type")
-		);
-		InsertInto( NewTblExpr , Eval Expr(
-			// Base URL to be used by all requests
-			ns:baseURL = expr(tb_BaseURL << getText);
-			// Max number if items returned used by all requests
-			ns:maxRows = expr(num(tb_maxrows << getText));
-			ns:APIRowLimit = 150000;
-			// Use the minumum of the user specified maxRows and the API Row limit as the number of rows to pull in a single request
-			ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
-			// Gets the data server's web ID based on the user's preferences
-			serverid = nsLive:DataServerIdRequest(expr(serverName));
-			);
-		);
-
-		// Get pointIDs
-		If(searchField == "webID",
-			InsertInto(NewTblExpr,
-				evalExpr(pointIDs = expr(searchStrings))
-			)
-		,//else, need to request pointIDs
-			InsertInto(NewTblExpr,
-				evalExpr({pointIDs, pointNames} = nsLive:PointRequest(serverid, expr(oldcn), expr(searchfield), expr(matchType)))
-			)
-		);
-
-		// Call a Table function depending on the query type
-		tableRequestExpr = Match(querytype,
-			"Point Info",
-				Expr(dtLong = nsLive:GetPointAttributesTable(pointIDs)),
-			"Snapshot Values",
-				Expr(dtLong = nsLive:GetSnapshotValuesTable(pointIDs);
-				tableName = dtLong << getName;),
-			"All Archived Values",
-				EvalExpr(dtLong = nsLive:GetArchiveValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime)););
-				Expr(tableName = dtLong << getName;),
-			"Interpolated Values",
-				EvalExpr(dtLong = nsLive:GetInterpolatedValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime), Expr(intervalTime))),
-			"Average",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Average", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Count",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Count", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Max",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Maximum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Min",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Minimum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Population Standard Deviation",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "PopulationStdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Range",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Range", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Standard Deviation",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "StdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			"Totals",
-				EvalExpr(dtLong = nsLive:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Total", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
-			throw("Unknown query type")
-		);
-		InsertInto(NewTblExpr, NameExpr(tableRequestExpr));
-
-		// Check if user's Max Rows is exceeded. For Point Info and Snapshot Value compare to row count.
-		// For other queries compare to the most data for any one tag pulled.
-		InsertInto(NewTblExpr, EvalExpr(
-			if(!contains({"Point Info", "Snapshot Values"}, expr(querytype)),
-				dtCount = dtLong << summary(group(:tag), "private");
-				rowCount = colMax(column(dtCount, "N Rows"));
-				close(dtCount, "nosave");
-			,
-				rowCount = nRows(dtLong)
-			);
-			if(rowCount >= ns:maxRows,
-				NewWindow("Max Rows Exceeded", <<modal,
-					TextBox(
-						"Met or exceeded the maximum number of rows (" || char(ns:maxRows) ||
-						") for this query. Increase the allowed maxrows or restrict the query. "||
-						" Some results might be missing."
-					)
-				);
-				dtLong << BringWindowToFront;
-			);
-			oldcn = expr(oldcn);
-			oldcncorrected = oldcn;
-		));
-
-		If(cnformat != "tag",
-			//Change Column Names 
-			InsertInto(NewTblExpr, EvalExpr(
-				newcn = expr(newcn);
-				For( i = 1, i <= N Rows( dtLong ), i++,
-					pos = Min( Loc( oldcncorrected, Uppercase( Column( dtLong, "tag" )[i]) ) );
-					If( pos > 0,
-						Column( dtLong, "tag" )[i] = newcn[pos]
-					)
-				)
-			))
-		);
-
-		If( TableFormat == "Wide",
-			// Make wide table
-			InsertInto(NewTblExpr, EvalExpr(
-				tableName = dtLong << getName;
-				dtWide = dtLong << Split(
-					Split By( :tag ),
-					Split( expr(ColToSplit) ),
-					Group( :time ),
-					Remaining Columns( Drop All ),
-					Sort by Column Property
-				);
-				close(dtLong, "nosave");
-				dtWide << setName(tableName);
-			));
-			If(cb_tagtonotes << Get,
-				// Save column properties
-				InsertInto(NewTblExpr, EvalExpr(
-					For( i = 1, i <= N Cols( dtWide ), i++,
-						cn = Regex( Column( dtWide, i ) << Get Name, "((value )|(svalue )|(status ))?(.*)", "\5" );
-						If( !Is Missing( cn ),
-							pos = Min( Loc( oldcn, cn ) );
-							If( pos > 0,
-								Column( dtWide, i ) << Set Property( "PI tag", oldcncorrected[pos] );
-								Column( dtWide, i ) << Set Property( "PI Original Column Name", Column( dtWide, i ) << Get Name );
-								Column( dtWide, i ) << Set Property( "PI call type", expr(querytype) );
-								Column( dtWide, i ) << Set Property( "PI interval", expr(intervalTime) );
-								Column( dtWide, i ) << Set Property( "PI Server", expr(serverName) );
-								If( contains({"Average", "Count", "Max", "Min", "Population Standard Deviation", "Range", "Standard Deviation", "Totals"}, expr(querytype)), 
-									Column( dtWide, i ) << Set Property( "PI step", expr(stepTime));
-									Column( dtWide, i ) << Set Property( "PI interval start offset", "-" || expr(stepTime));
-									Column( dtWide, i ) << Set Property( "PI interval end offset", "");
-								)
-							);
-						);
-					)
-				))
-			)
-		);
-		InsertInto( NewTblExpr , Expr(
-			dt = new Table("TempValueToMakeJMPLiveWork");
-			dt = DataTable(tableName);
-			Note To Users = "\[
-			
-			Add your script after these comments.
-			 - Change any data table references to 'dt' as in the example below
-			 - Make sure dt; is the last line of the script
-			
-			Example:
-			dt:value SINUSOID << Set Property( "Spec Limits", {LSL( -50 ), USL( 50 ), Show Limits( 0 )} );
-			dt;
-			]\";
-			dt;
-		));
-		
-		Return( NameExpr(NewTblExpr) );
-	);
-);
 //flag to output a bunch of status info to the log file
 debug = 0;
 

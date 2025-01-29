@@ -3,13 +3,13 @@ Associative Array(
 		List( "abouttext", "Facilitates getting data from OSI/Aveva's PI Historian.
 
 Requires setup of PI ODBC, OLEDB, and DAS." ),
-		List( "addinVersion", 0.11 ),
+		List( "addinVersion", 0.1202 ),
 		List( "author", "Isaac Himanga" ),
 		List( "buildDate", 3755777768 ),
 		List( "developer", "Isaac Himanga" ),
 		List( "developeremail", "message me on the JMP community or github" ),
 		List( "id", "com.github.himanga.JMPOSIPITools" ),
 		List( "name", "JMP OSI PI Tools" ),
-		List( "state", "PROD" )
+		List( "state", "DEV" )
 	)
 )

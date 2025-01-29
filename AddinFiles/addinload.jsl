@@ -13,6 +13,9 @@ If(
 //store the home directory for this add-in
 ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
 
+//this is not, by default, running inside jmp live
+ns:live = 0;
+
 //read a file with information about the add-in (name, developer, etc)
 ns:metadata_aa = Include( "customMetadata.jsl" );
 

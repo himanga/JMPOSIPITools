@@ -5,10 +5,22 @@ All notable changes to this project will be documented in this file.
 ## [HEAD]
 
 ### Added
-- Option for insecure registry
 
 ### Changed
-- Update about page with links to license and changelog.
+- Modified JMP Live script to include the entire add-in namespace - easier to create a script including types of queries.
+
+### Fixed
+- API error for some all archived value data pulls.
+
+## [0.11]
+
+### Added
+- Build using powershell.
+- Support for JMP Live
+
+### Changed
+- Connects to PI via the PI's Web API insead of via DAS.
+- User can save a list of connections in preferences.
 
 ### Fixed
 
