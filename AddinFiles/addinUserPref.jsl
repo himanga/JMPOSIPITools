@@ -42,16 +42,99 @@ ns:LoadUserPref = function ({},
 	
 	
 	If( File exists( ns:UserPrefPath ),
-		//Load from file
-		savedPref = Parse( Load text file( ns:UserPrefPath ) );
+		loaderrors = {};
+			
+		Try(
+			//insert each preference into the user interface
+			//Overwrite default preferences with any saved in the file
+			ns:TryAppendError(Expr( savedPref = Parse( Load text file( ns:UserPrefPath ) ) ),
+				expr(loaderrors), "Error loading and parsing preferences file", 1 );
+			ns:TryAppendError(Expr( pref = savedPref << First; ), 
+				expr(loaderrors), "Error getting first preference while loading preferences file", 1 );
+			ns:TryAppendError(Expr( totalpref = N Items( savedPref ) ), 
+				expr(loaderrors), "Error getting number of preferences while loading preferences file", 1 );
+			knownprefs = ns:PrefInfo << get keys;
+			pref = (savedPref << get keys)[1];
+			for( prefn = 1, prefn <= totalpref, prefn++,
+				Try(
+					ns:TryAppendError(
+						Expr(if(contains(knownprefs, pref),
+							if(ns:PrefInfo[pref][2] == "char",
+								if(!(Type(savedPref[pref]) == "String"), throw("Error reading preference from file, " || char(pref) || " should be a string, it was a " || Type(newPref[pref])));
+								if(n items(ns:PrefInfo[pref][3]) > 0, 
+									if(!(contains(ns:PrefInfo[pref][3], savedPref[pref])), throw("Error reading preference from file, value not in the list of allowable values"));
+								),
+								Print("Warning: unhandled preference type (" || pref || ") while reading from file - it was retained.")
+							),
+							Print("Warning: unknown preference (" || pref || ") read from file - it was retained.")
+						)),
+						expr(loaderrors), "Error checking preference validitiy while loading preferences file", 1 );
+					ns:TryAppendError(Expr( newPref[pref] = savedPref[pref] ), 
+						expr(loaderrors), "Error storing preference while loading preferences file", 1 )
+				);
+				ns:TryAppendError(Expr( pref = savedPref << Next( pref ); ), 
+					expr(loaderrors), "Error getting next preference while loading preferences file", 1 );,
+			);
+		,
+			print(exception_msg)
+		);
 		
-		//Overwrite default preferences with any saved in the file
-		//insert each preference into the user interface
-		pref = savedPref << First;
-		totalpref = N Items( savedPref );
-		for( prefn = 1, prefn <= totalpref, prefn++,
-			newPref[pref] = savedPref[pref];
-			pref = savedPref << Next( pref );
+		if( length(loaderrors) > 0,
+			//failed to parse or load the file - ask the user if they want to replace it
+			loadfailWin = New window( "Failed to Load Preferences",
+				V List box(
+					Text Box( 
+						ns:metadata_aa["name"] || " failed to load user preferences from the saved file.", 
+						<<Set Font Style("bold" ), 
+						<< Set Width( 600 )
+					),
+					Spacer Box( Size( 24, 24 ) ),
+					Text Box( 
+						"Preferences are saved in the file, '" || ns:UserPrefPath || "', but it couldn't be processed, what do you want to do?", 
+						<< Set Width( 600 )
+					),
+					Spacer Box( Size( 24, 24 ) ),
+					
+					H List Box(
+						panelbox("Action to take:",
+							rb_tblformat = radio box({
+								"Fix broken settings, keeping any that could be read (if any).  This will probably fix the issue but you will lose some or all settings.",
+								"Start over with a new black config file with all defaults - this should fix it but you lose all settings.",
+								"Nothing for now, the add-in might not load this time and I will fix it myself."
+							})
+						)
+					),
+					
+					Button Box( "Complete and Close", 
+						if(Contains({1,2}, ( rb_tblformat << get )),
+							//make a backup of the file
+							Copy file(
+								ns:UserPrefPath, 
+								Regex( 
+									ns:UserPrefPath, 
+									"^(.*)\.jsl$",
+									"\1 backup after failed parse " || Format( Today(), "Format Pattern", "<YYYY>-<MM>-<DD> <hh24><mm><ss>" ) || ".jsl"
+								)
+							);
+							//save the user prefernces file - this just has default values and any that successfully transferred.
+							if(( rb_tblformat << get ) == 2, newPref = ns:DefaultPref );
+							ns:UserPref = newPref;
+							ns:SaveUserPref,
+							loadfailWin << Close Window();
+							throw(ns:metadata_aa["name"] || " failed to load: " || Concat Items(loaderrors, ",\!N"));
+						);
+						loadfailWin << Close Window();
+					),
+					Spacer Box( Size( 24, 24 ) ),
+					Text Box( "Error details:" ),
+					Text Box(
+						Concat Items(loaderrors, "\!N")	
+					)
+					,
+					<< Padding( Top(20), Left(20), right(20), bottom(20) )
+				)
+			)
+			
 		);
 	
 	);

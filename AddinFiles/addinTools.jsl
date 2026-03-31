@@ -39,3 +39,51 @@ ns:assignparsename = function({left, right},
 		Expr( assign() )
 	) );
 );
+
+/* 
+	Function: TryAppendError
+		---Prototype---
+		TryAppendError( Expr, List, String )
+		---------------
+		Evalutes an expression and if it fails add the error expression to a list.
+
+	Arguments:
+		ex - The expression to evaluate (wrap this in Expr)
+		lst - List to append error message to (wrap this in Expr).
+		prepend - text to include in error message (string).
+		stillthrow - set to 1 to throw an error if this code errors, otherwise it will handle the error.
+
+	Example:
+		> loaderrors = {};
+		> ns:TryAppendError(Expr(1=2), Expr(loaderrors), "Error loading preferences file" );
+		> show(loaderrors);
+		>
+		> // output:
+		> loaderrors = {"Error loading preferences file: attempting to assign to an object that is not an L-value"};
+		
+	Returns:
+		The result of ex after it is evaluated
+	
+	Note:
+		
+*/
+ns:TryAppendError = function({ex, lst, prepend, stillthrow = 0},
+	lst = Name Expr(lst);
+	if(!(Type(lst) == "List"), Throw("list to append error to must be a list, (was " || Type(lst) || ")"));
+	if(!(Type(prepend) == "String"), Throw("prepend text must be a string, (was " || Type(prepend) || ")"));
+	if(!(Contains({"Integer", "Number"}, Type(stillthrow) )), Throw("stillthrow must be an integer of 0 or 1, (was " || Type(stillthrow) || ")"));
+	if(!(Contains({0,1}, stillthrow)), Throw("stillthrow must be 0 or 1"));
+	Try(
+			
+		Eval(Name Expr(ex));
+	,
+		err = exception_msg;
+		if(is list(err),
+			errm = prepend || ": " || char(err[1]),
+			errm = prepend || ": " || char(err);
+		);
+		Print(errm);
+		Eval(Eval Expr(Insert Into(Expr(name expr(lst)), errm)));
+		if(stillthrow == 1, Throw(errm), Return(0));
+	)
+);

@@ -9,7 +9,7 @@ ut test( "Test", "One", Expr(
 	);
 ));
 
-ut test( "addinToolstest", "assignparsename", Expr(
+ut test( "Main", "assignparsename", Expr(
 
     ut assert value(
         ns:assignparsename( "foo", "bar" );
@@ -35,4 +35,178 @@ ut test( "addinToolstest", "assignparsename", Expr(
         ut throws( ut anything() ),
         "Function should error when right argument missing"
     );
+));
+
+//
+// Tests for TryAppendError (updated for stillthrow handling)
+//
+
+ut test("addinToolstest", "TryAppendError", Expr(
+
+    // ------------------------------------------------------
+    // 1. Basic success: expression succeeds & return value OK
+    // ------------------------------------------------------
+    loaderrors = {};
+    ut assert value(
+        r = ns:TryAppendError( Expr(10 + 5), Expr(loaderrors), "No error expected" );
+        r,
+        ut equal to(15),
+        "Should return evaluated value when expression succeeds"
+    );
+
+    ut assert value(
+        loaderrors,
+        ut equal to({}),
+        "Should not append any errors on success"
+    );
+
+    // --------------------------------------------------------
+    // 2. Append behavior: expression FAILS → append to list
+    // --------------------------------------------------------
+    loaderrors = {};
+    ut assert value(
+        ns:TryAppendError(
+            Expr( 1 = 2 ), 
+            Expr(loaderrors), 
+            "Failure occurred"
+        );
+        loaderrors[1],
+        ut contains("Failure occurred"),
+        "Should append prefixed error message"
+    );
+
+    // ---------------------------------------------------------
+    // 3. stillthrow = 1 → error appended but THEN re-thrown
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert that(
+        Expr(
+            ns:TryAppendError(
+                Expr(1 = 2),
+                Expr(loaderrors),
+                "Fail with rethrow",
+                1        // stillthrow = 1
+            )
+        ),
+        ut throws( ut anything() ),
+        "Should rethrow error if stillthrow = 1"
+    );
+
+    ut assert value(
+        loaderrors[1],
+        ut contains("Fail with rethrow"),
+        "Error should still be appended before rethrow"
+    );
+
+    // ---------------------------------------------------------
+    // 4. stillthrow must be integer
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert that(
+        Expr(
+            ns:TryAppendError(
+                Expr(1=2),
+                Expr(loaderrors),
+                "Bad stillthrow",
+                "notint"
+            )
+        ),
+        ut throws( ut anything() ),
+        "Should error when stillthrow is not an integer"
+    );
+
+    // ---------------------------------------------------------
+    // 5. stillthrow must be 0 or 1
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert that(
+        Expr(
+            ns:TryAppendError(
+                Expr(1=2),
+                Expr(loaderrors),
+                "Bad stillthrow val",
+                2     // invalid
+            )
+        ),
+        ut throws( ut anything() ),
+        "Should error when stillthrow is not 0 or 1"
+    );
+
+    // ---------------------------------------------------------
+    // 6. lst must be a list
+    // ---------------------------------------------------------
+    ut assert that(
+        Expr( ns:TryAppendError( Expr(1=2), Expr("notalist"), "prepend" ) ),
+        ut throws( ut anything() ),
+        "Should error when lst is not a list"
+    );
+
+    // ---------------------------------------------------------
+    // 7. prepend must be a string
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert that(
+        Expr( ns:TryAppendError( Expr(1=2), Expr(loaderrors), 123 ) ),
+        ut throws( ut anything() ),
+        "Should error when prepend is not a string"
+    );
+
+    // ---------------------------------------------------------
+    // 8. Missing arguments should error
+    // ---------------------------------------------------------
+    ut assert that(
+        Expr( ns:TryAppendError() ),
+        ut throws( ut anything() ),
+        "Missing all arguments should error"
+    );
+
+    ut assert that(
+        Expr( ns:TryAppendError( Expr(1=2) ) ),
+        ut throws( ut anything() ),
+        "Missing lst and prepend should error"
+    );
+
+    ut assert that(
+        Expr( ns:TryAppendError( Expr(1=2), Expr(loaderrors) ) ),
+        ut throws( ut anything() ),
+        "Missing prepend should error"
+    );
+
+    // ---------------------------------------------------------
+    // 9. Ensure original exception message is included
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert value(
+        ns:TryAppendError(
+            Expr( Throw("XYZ") ),
+            Expr(loaderrors),
+            "Prefix"
+        );
+        loaderrors[1],
+        ut contains("XYZ"),
+        "Should include the underlying exception message"
+    );
+
+    // ---------------------------------------------------------
+    // 10. When stillthrow=0 and error occurs:
+    //     The returned value should NOT be an exception
+    // ---------------------------------------------------------
+    loaderrors = {};
+    ut assert value(
+        threwerror = 0;
+        Try(
+			ns:TryAppendError(
+				Expr( Throw("Oops") ),
+				Expr(loaderrors),
+				"Some prefix",
+				0
+			);
+		,
+			threwerror = 1;
+		);
+		threwerror;,
+        ut equal to(0),
+        "When stillthrow=0 function should swallow exception and return a value"
+    );
+
 ));
