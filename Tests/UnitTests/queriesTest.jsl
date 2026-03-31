@@ -1,0 +1,169 @@
+﻿ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+
+ut test( "queries", "UrlEncode", Expr(
+
+    //
+    // Correct encoding tests
+    //
+
+    ut assert value(
+        ns:UrlEncode( "hello world" ),
+        ut equal to( "hello%20world" ),
+        "Encodes spaces as %20"
+    );
+
+    ut assert value(
+        ns:UrlEncode( "100%" ),
+        ut equal to( "100%25" ),
+        "Encodes % as %25"
+    );
+
+    ut assert value(
+        ns:UrlEncode( "a+b" ),
+        ut equal to( "a%2Bb" ),
+        "Encodes + as %2B"
+    );
+
+    ut assert value(
+        ns:UrlEncode( "A&B" ),
+        ut equal to( "A%26B" ),
+        "Encodes &amp; as %26"
+    );
+
+    ut assert value(
+        ns:UrlEncode( "(test)" ),
+        ut equal to( "%28test%29" ),
+        "Encodes parentheses"
+    );
+
+
+    //
+    // Error handling tests (arguments missing)
+    //
+
+    ut assert that(
+        Expr( ns:UrlEncode() ),
+        ut throws( ut anything() ),
+        "Should throw error when argument is completely missing"
+    );
+
+    ut assert that(
+        Expr( ns:UrlEncode( ) ),
+        ut throws( ut anything() ),
+        "Should error when {str} argument is not provided"
+    );
+
+    ut assert that(
+        Expr( ns:UrlEncode( {} ) ),
+        ut throws( ut anything() ),
+        "Should error when argument is not a string"
+    );
+
+));
+
+ut test( "queries", "ParseDateString", Expr(
+
+    ut assert value(
+        ns:ParseDateString( "2024-01-02T12:34:56" ),
+        ut equal to( ParseDate("2024-01-02T12:34:56") ),
+        "Non‑Z timestamps should be parsed directly"
+    );
+
+	expectedLocal = ParseDate( "2024-01-02T12:34:56" ) + ns:GetLocalTimeZoneDifference();
+
+    ut assert value(
+        ns:ParseDateString( "2024-01-02T12:34:56Z" ),
+        ut equal to( expectedLocal ),
+        "Z‑suffix timestamps should convert from UTC to local time"
+    );
+
+    ut assert that(
+        Expr( ns:ParseDateString() ),
+        ut throws( ut anything() ),
+        "Function should error when argument missing"
+    );
+
+	ut assert that(
+        Expr( ns:ParseDateString( ) ),
+        ut throws( ut anything() ),
+        "Function should error when argument is empty"
+    );
+
+    ut assert that(
+        Expr( ns:ParseDateString( 1234 ) ),
+        ut throws( ut anything() ),
+        "Function should error when argument is not a string"
+    );
+
+));
+
+ut test( "Main", "GreatestCommonDivisor", Expr(
+
+    //
+    // Correct computation tests
+    //
+
+    ut assert value(
+        ns:GreatestCommonDivisor( 12, 8 ),
+        ut equal to( 4 ),
+        "GCD of 12 and 8 should be 4"
+    );
+
+    ut assert value(
+        ns:GreatestCommonDivisor( 54, 24 ),
+        ut equal to( 6 ),
+        "GCD of 54 and 24 should be 6"
+    );
+
+    // Test case where a < b (swapping should occur)
+    ut assert value(
+        ns:GreatestCommonDivisor( 9, 27 ),
+        ut equal to( 9 ),
+        "GCD should work even when a < b"
+    );
+
+    // Test relatively prime numbers
+    ut assert value(
+        ns:GreatestCommonDivisor( 17, 5 ),
+        ut equal to( 1 ),
+        "GCD of 17 and 5 should be 1"
+    );
+
+
+    //
+    // Error tests
+    //
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor() ),
+        ut throws( ut anything() ),
+        "Function should error when both arguments missing"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( , 5 ) ),
+        ut throws( ut anything() ),
+        "Function should error when first argument missing"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( 10, ) ),
+        ut throws( ut anything() ),
+        "Function should error when second argument missing"
+    );
+
+    // Error on wrong types
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( "x", 5 ) ),
+        ut throws( ut anything() ),
+        "Function should error on invalid type for a"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( 10, "y" ) ),
+        ut throws( ut anything() ),
+        "Function should error on invalid type for b"
+    );
+
+));

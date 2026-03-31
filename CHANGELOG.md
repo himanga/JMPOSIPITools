@@ -8,12 +8,12 @@ All notable changes to this project will be documented in this file.
 -
 
 ### Changed
-- 
+- Behind the scenes: updated internal functions to use new JMP functionality.
 
 ### Fixed
 - 
 
-## [0.12]
+## [0.13]
 
 ### Added
 

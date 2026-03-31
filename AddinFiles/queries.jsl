@@ -2,6 +2,9 @@ Names Default To Here(1);
 
 // Encodes a string to be URL friendly
 ns:UrlEncode = function({str},
+	
+	if(!(Is String(str)), throw("Argument must be a string"));
+	
 	substitute(str,
 		"%", "%25", // Substitute % first
 		" ", "%20",
@@ -596,6 +599,8 @@ ns:GetSummaryValuesTable = Function({pointIDs, pointNames, summaryType, calculat
 // Calculate the greatest common divisor of two numbers
 ns:GreatestCommonDivisor = function({a, b},
 	{DEFAULT LOCAL},
+	if(is missing(a), throw("missing first argument"));
+	if(is missing(b),throw("missing second argument"));
 	if(a < b,
 		temp = a;
 		a = b;
