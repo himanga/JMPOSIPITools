@@ -319,6 +319,8 @@ BuildJMPJSL = function( {live=0}, {txt},
 	startTime = TimeStart << GetText;
 	endTime = TimeEnd << GetText;
 	intervalTime = TimeInterval << GetText;
+	tableName = tb_tablename << GetText;
+	
 	If(SeparateInterval << Get(1) == 0,
 		// Use the interval as the time step if there is no separate interval
 		stepTime = intervalTime
@@ -469,7 +471,6 @@ BuildJMPJSL = function( {live=0}, {txt},
 		);
 		oldcn = expr(oldcn);
 		oldcncorrected = oldcn;
-		tableName = dtLong << getName;
 	));
 
 	If(cnformat != "tag",
@@ -521,6 +522,10 @@ BuildJMPJSL = function( {live=0}, {txt},
 				)
 			))
 		)
+	,
+		InsertInto(NewTblExpr, EvalExpr(
+			dtLong << setName(tableName);
+		));
 	);
 
 	InsertInto( NewTblExpr , EvalExpr(
@@ -713,7 +718,12 @@ nw = New Window( "PI Web API Query Builder",
 						bbHelp( "How should summarized values be calculated?  This makes a big difference " ||
 							"when there are 10 archived values one hour with a small value and 1 archived value " ||
 							"the next hour with a large value.", HelpType = "stdradio" )
-					)
+					),
+					
+					stdtxtInput( varname = "tb_tablename",
+						descmsg = "Table name", 
+						initval = "Raw PI Data", 
+						helpmsg = "Enter the name of the new data table containing the data from this run." )
 				),
 				
 				Spacer Box( Size( 24, 24 ) ),
