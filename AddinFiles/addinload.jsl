@@ -69,7 +69,7 @@ ns:PrefInfo = Associative Array({
 	{"Allow_Insecure_Connections", {
 		"Whether to allow connections to secuire sites that do not have a valid certificate.  Use this for testing only. (yes/no).",
 		"char",
-		{}
+		{"yes", "no"}
 	}}
 });
 
