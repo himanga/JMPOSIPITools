@@ -369,7 +369,7 @@ BuildJMPJSL = function( {live=0}, {txt},
 		nsliveContents = ns << Get Contents;
 		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
 		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
-		nsLiveContentsList = transform each({s, i}, nsliveContents,
+		nsLiveContentsList = Transform Each({s, i}, nsliveContents,
 			e = Eval Expr( ( Assign( expr( name expr(s[1]) ), expr( name expr(s[2])) ) ) );
 			name expr(e)
 		);
@@ -593,7 +593,7 @@ nw = New Window( "PI Web API Query Builder",
 					stdcbInput(
 						descmsg = "Recall Connection", 
 						varname = "cb_connpresets",
-						values = transform each( {line}, window:connections, {w},
+						values = Transform Each( {line}, window:connections, {w},
 							w = words(line, ";");
 							w[1] || " (" || w[2] || ")"
 						),
@@ -1042,9 +1042,9 @@ exQueries = {
 LoadDefault = function( {defname},
 	Try(
 		DisableUpdate = 1;
-		ns:For Each( {x}, exQueries, 
+		For Each( {x}, exQueries, 
 			if(x[1] == defname,
-				ns:For Each( {y}, x[3], Eval(y) )
+				For Each( {y}, x[3], Eval(y) )
 			)
 		);
 		
