@@ -129,14 +129,13 @@ ns:UserPrefUI = function({},
 
 					//Check that the user entered an allowed value
 					If( N Items( ns:PrefInfo[Expr( pref )][3] ) > 0,
-						isallowed = sum( ns:map(
-							ns:PrefInfo[ Expr( pref )][3]
-						,
-							function( {x},
-								if( x == newVal,
-									1,
-									0
-								);
+					
+						isallowed = sum( Transform Each(
+							{x},
+							ns:PrefInfo[ Expr( pref )][3],
+							if( x == newVal,
+								1,
+								0
 							);
 						) );
 					,

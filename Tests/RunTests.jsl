@@ -12,6 +12,6 @@ Names Default To Here( 0 );
 // Show results
 //
 
-ut global reporter = ut data table reporter();
+ut global reporter = ut collecting reporter();
 ut include jsl files recursively( "UnitTests" );
-ut global reporter << New Data View;
+ut global reporter << show report;

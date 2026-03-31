@@ -19,16 +19,6 @@ If(
 );
 ns:logusage( "Get PI Data" );
 
-
-//Function to assign a value to a symbol when the symbol name is pased as a string
-assignparsename = function({left, right}, 
-	Eval(Substitute(
-		Eval List( {as name( name expr( left ) ), right} ),
-		Expr({}),
-		Expr( assign() )
-	) );
-);
-
 //Standard box to display description for each input
 tbDesc = Function( {descmsg, helpmsg, wdth = 100},
 	Eval( Eval Expr(  VCenter Box( 
@@ -61,7 +51,7 @@ tebText = Function( {initval, varname, helpmsg = "", wdth = 150,
 //Standard combo box
 cbCombo = Function( {values, fn, varname, helpmsg = "", wdth = 150 },
 	cbexpr2 = (Eval Expr(  VCenter Box( 
-		assignparsename(
+		ns:assignparsename(
 			varname,
 			Combo Box(
 				values,
@@ -337,16 +327,16 @@ BuildJMPJSL = function( {live=0}, {txt},
 	);
 	TableFormat = rb_tblformat << getSelected;
 	
-	oldcn = ns:map(searchStrings,
-		function( {x}, Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) ) )
+	oldcn = Transform Each( {x}, searchStrings,
+		Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) )
 	);
 	
-	newcn = ns:map(searchStrings,
-		function( {x}, FieldFromLine( cnformat, x || "\!N" ) )
+	newcn = Transform Each( {x}, searchStrings,
+		FieldFromLine( cnformat, x || "\!N" )
 	);
 	
-	taggroups = ns:map(searchStrings,
-		function( {x}, FieldFromLine( "group", x || "\!N" ) )
+	taggroups = Transform Each( {x}, searchStrings,
+		FieldFromLine( "group", x || "\!N" )
 	);
 
 	ColToSplit = If( 
@@ -638,7 +628,7 @@ nw = New Window( "PI Web API Query Builder",
 							fn = function( {this, index}, 
 								preset = try( cb_times << Get Selected; );
 								try(	if( !( preset == "Custom" ),
-										nms = ns:map(PresetTimes, function({x}, x[1] == preset) );
+										nms = Transform Each( {x}, PresetTimes, {x}, x[1] == preset);
 										TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
 										TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
 										TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
@@ -949,7 +939,7 @@ nw = New Window( "PI Web API Query Builder",
 						V List box(
 							Text Box( "Example Queries", <<Set Font Style("bold" )),
 							
-							lb_ExQuery = List Box( ns:map(exQueries, function({x}, x[1])) ),
+							lb_ExQuery = List Box( Transform Each( {x}, exQueries, x[1]) ),
 							
 							Spacer Box( Size( 24, 24 ) ),
 							H List Box(
@@ -1052,13 +1042,11 @@ exQueries = {
 LoadDefault = function( {defname},
 	Try(
 		DisableUpdate = 1;
-		ns:map(exQueries, Function({x},
+		ns:For Each( {x}, exQueries, 
 			if(x[1] == defname,
-				ns:map(x[3], Function({x},
-					Eval(x);
-				))
+				ns:For Each( {y}, x[3], Eval(y) )
 			)
-		) );
+		);
 		
 		DisableUpdate = 0;
 		UpdateOutput();
@@ -1075,7 +1063,7 @@ PresetTimes = {
 	{"1 hr moving average", 		"y",			"t",		"1h", 	1, 		"10m"}
 };
 
-cb_times << Set Items( ns:map( PresetTimes, function({x}, x[1] ) ) );
+cb_times << Set Items( Transform Each( {x}, PresetTimes, x[1] ) );
 
 //update the screen with initial values.
 LoadDefault("Interpolated Values");
