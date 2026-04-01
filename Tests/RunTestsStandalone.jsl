@@ -1,10 +1,37 @@
-﻿// About: Loads the add-in and runs unit tests
-// calls <RunTests.jsl>, and specifically 
-// Initialize the JSL Hamcrest add-in before running this
+﻿//Runs unit tests - designed to be called from powershell with no user input
+thisAddIn = "com.github.himanga.JMPOSIPITools";
 
-If(Is Empty(ut addin home), ut addin home = Convert File Path("../"));
-If(Is Empty(ut addin scratch), ut addin scratch = Get Path Variable("TEMP"));
+// About: get or make namespace for this add-in
+If( 
+	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+);
+// About: Loads the add-in and runs unit tests
+Try(
+	Include((Get Addin( "com.jmp.jslhamcrest" ) << Home Folder()) || "Source\Addin\Actions\InitializeFramework.jsl");
+	Include((Get Addin( thisAddIn ) << Home Folder()) || "addinload.jsl");
+	
+	If(Is Empty(ut addin home), ut addin home = Convert File Path("../"));
+	If(Is Empty(ut addin scratch), ut addin scratch = Get Path Variable("TEMP"));
 
-Include( "../AddinFiles/addinLoad.jsl" );
+	ns:baseURL = ns:UserPref["Base_Url"];
 
-Include( "RunTests.jsl" );
+	ut global reporter = ut collecting reporter();
+	ut include jsl files recursively( "UnitTests" );
+	ReporterOutput = Log Capture(
+		ut global reporter << show report;
+	);
+
+	TotalFailures = ut global reporter << N total Failures;
+	
+	Save Text File(
+		"$temp\temp-unittestoutput.txt",
+		Eval( Eval Expr( Char( As JSON Expr(Associative Array( {
+			{"ReporterOutput", expr( ReporterOutput ) },
+			{"TotalFailures", Expr( TotalFailures ) }}
+		) ) ) ) )
+	),
+	exception_msg
+);
+Quit("No Save");
