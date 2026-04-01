@@ -17,12 +17,8 @@ You should have received a copy of the GNU General Public License along with the
 #  Set output file name
 $FilePathPrefix = "JMPOSIPITools"
 
-#Run Unit Tests
-
-
 #NaturalDocs
 & "C:\Program Files (x86)\Natural Docs\NaturalDocs.exe" "NaturalDocs"
-
 
 #Save temporary copy of files
 $TempPath = "AddinFilesTempForBuild/"
@@ -65,7 +61,68 @@ $compress = @{
 Compress-Archive @compress
 Rename-Item -Path $ZipFileName -NewName $AddinFileName
 
+
+
+#Run Unit Tests
+# Requires that you have a default server defined that has a sinusoid tag
+$jmpPath = "$Env:ProgramFiles\JMP\JMPPRO\19\jmp.exe"
+
+#Create a jsl file that will load an add-in and then close
+
+$jslToLoadAddInPath = Join-Path -Path (Get-Location) -ChildPath "temp-loadaddin.jsl"
+$AddInFullPath = Join-Path -Path (Get-Location) -ChildPath $AddinFileName
+$textToWrite = "Open(`"$AddInFullPath`");`nQuit(`"No Save`";);"
+
+try {
+    # Write text to file (overwrites existing content)
+    Set-Content -Path $jslToLoadAddInPath -Value $textToWrite -Encoding UTF8
+}
+catch {
+    Write-Host "Error writing to file: $($_.Exception.Message)" -ForegroundColor Red
+}
+
+Write-Output "Opening JMP to load add-in"
+$process = Start-Process -FilePath $jmpPath `
+    -ArgumentList $jslToLoadAddInPath `
+    -NoNewWindow `
+    -PassThru -Wait
+
+Write-Output "Opening JMP to run tests"
+$jslPath = Join-Path -Path (Get-Location) -ChildPath "Tests/RunTestsStandalone.jsl"
+$tempfilePath = Join-Path -Path "$Env:TEMP" -ChildPath "temp-unittestoutput.txt"
+
+$process = Start-Process -FilePath $jmpPath `
+    -ArgumentList $jslPath `
+    -NoNewWindow `
+    -PassThru -Wait
+
+# Read JSON result from JMP
+$jsonText = Get-Content $tempfilePath -Raw
+
+# Parse JSON
+$result = $jsonText | ConvertFrom-Json
+
+# Write report to console - everything but the successes
+$ReportFailures = "-------------- Failures --------------" + (($result.ReporterOutput -split '-------------- Failures --------------', 2)[1])
+$ReportHeader = ($result.ReporterOutput -split '-----', 2)[0]
+Write-Host "`n`nUNIT TEST RESULTS"
+Write-Host $($ReportFailures)
+Write-Host $($ReportHeader)
+
+# Check numeric value
+if ($result.TotalFailures -gt 0) {
+    Write-Host "`n`nUnit tests failed - $($result.TotalFailures) did not succeeed, this add-in is not ready for distribution!"
+    #Write-Error "Unit tests failed - $($result.TotalFailures) did not succeeed, this is not for distribution!"
+}
+else {
+    Write-Host "`n`nUnit tests succeeded."
+}
+
 #Cleanup
 if (Test-Path $TempPath) {
     Remove-Item -Recurse -Force -Confirm:$false $TempPath
+}
+
+if (Test-Path $tempfilePath) {
+    Remove-Item -Recurse -Force -Confirm:$false $tempfilePath
 }
