@@ -8,13 +8,11 @@ All notable changes to this project will be documented in this file.
 - User can set output table name.
 
 ### Changed
-- Better handling of corrupt preferences file
-- Use can set output table name
 - Behind the scenes: updated internal functions to use new JMP functionality.
 - Behind the scenes: automatically run unit tests when building add-in
 
 ### Fixed
-- 
+- Better handling of corrupt preferences file
 
 ## [0.13]
 
