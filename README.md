@@ -33,5 +33,6 @@ About: Steps
 - Open a pull request on github
 
 ## Contributors
+- [Isaac Himanga](https://github.com/himanga)
 - [Predictum Inc.](https://predictum.com/)
-- [Jonathan Austin](jonathanrobaustin@gmail.com
+- [Jonathan Austin](jonathanrobaustin@gmail.com)
