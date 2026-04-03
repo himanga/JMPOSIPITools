@@ -6,8 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - User can set output table name.
+- User can choose which fields to return for some query types
 
 ### Changed
+- Switched tag entry from text box to data table
 - Behind the scenes: updated internal functions to use new JMP functionality.
 - Behind the scenes: automatically run unit tests when building add-in
 

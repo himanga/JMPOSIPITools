@@ -91,31 +91,26 @@ bbHelp = Function( {helpmsg, HelpType = "stdtext" }, {toppad, bb},
 sbDefault = Function( {}, Spacer Box( Size( 3, 3 ) ) );
 
 //Standard line for text input
-stdtxtInput = Function( { varname, descmsg, initval, helpmsg, nlines = 1, descwidth = 100,
+stdtxtInput = Function( { varname, descmsg, initval, helpmsg, nlines = 1, descwidth = 100, editwidth = 250,
 		fn = function( {this}, UpdateOutput(); ) },
 
 	Eval( Eval Expr(
 		H List Box(
-			tbDesc( Expr( descmsg ), helpmsg ),
-			
+			tbDesc( Expr( descmsg ), helpmsg, wdth = descwidth ),
 			sbDefault(), 
-			
-			tebText( initval, varname, helpmsg ),
-			
+			tebText( initval, varname, helpmsg, wdth = editwidth ),
 			sbDefault(), 
-			
 			bbHelp( helpmsg )
-			
 		)
 	) )
 );
 
 //Standard combobox input
-stdcbInput = Function( { descmsg, varname, values, fn, helpmsg },
+stdcbInput = Function( { descmsg, varname, values, fn, helpmsg, descwidth = 97 },
 	
 	H List Box(
 		Eval( Eval Expr( 
-			tbDesc( Expr( descmsg ), helpmsg )
+			tbDesc( Expr( descmsg ), helpmsg, wdth = descwidth )
 		) ),
 		
 		sbDefault(), 
@@ -135,7 +130,7 @@ stdcbInput = Function( { descmsg, varname, values, fn, helpmsg },
 
 //Set default Table format
 DefaultTableFormat = function( {},
-	querytype = rb_querytype << Get Selected;
+	querytype = cb_querytypes << Get Selected;
 	
 	//Show or hide time options
 	if( querytype == "Point Info" |
@@ -147,24 +142,6 @@ DefaultTableFormat = function( {},
 		lb_querytimes << Visibility("visible");
 		rb_tblformat << Set( 2 );
 	);
-	
-);
-
-SizeTextBoxes = function( {},
-	boxes = { {TagList, TagListsb} };
-	for(i = 1, i <= N Items(boxes), i++,
-		Eval( Eval Expr( 
-			tbtmp = Text Box( Expr( boxes[i][1] ) << Get Text, set wrap( Expr( boxes[i][1] ) << Get Wrap), set width( Expr( boxes[i][1] ) << Get Width ), hide(0)); 
-		) );
-		tbtmp_nw = New Window("test", tbtmp);
-		tbtmp_height = (tbtmp << Get Size)[2];
-		tbtmp_nw << Close Window;
-		
-		Eval( Eval Expr(
-			Expr( boxes[i][1] ) << Set Height( max( tbtmp_height, ( Expr( boxes[i][2] ) << Get Height) - 30 ) );
-			Expr( boxes[i][1] ) << Set Width( max( 100, (Expr( boxes[i][2] ) << Get Width) - 30 ) );
-		) );
-	)
 	
 );
 
@@ -181,7 +158,7 @@ UpdateOutput = function( {},
 		TableFormat = "Long";
 	);
 
-	querytype = rb_querytype << Get Selected;
+	querytype = cb_querytypes << Get Selected;
 	calctype = rb_calctype << Get Selected;
 	searchfield = rb_SearchField << Get Selected;
 	
@@ -227,17 +204,8 @@ UpdateOutput = function( {},
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
 	,
-		/*
-		querytype == "Calculated Expression",
-		lb_querytimes << Visibility("visible");
-		lb_steptime << Visibility("collapse");
-		lb_CalcBasis << Visibility("collapse");
-		lb_searchfield << Visibility("collapse");
-		lb_matchtype << Visibility("collapse");
-		rb_tblformat << Set( 1 );
-		lb_longwide << Visibility("collapse");
-		,
-		*/
+	
+		//else
 		lb_querytimes << Visibility("visible");
 		lb_intervaltime << Visibility("visible");
 		// Separate step time only allowed for TimeWeighted basis
@@ -251,19 +219,42 @@ UpdateOutput = function( {},
 		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
-		JMPJSLout
+	);
+	
+	//show or hide fields to return different columns
+	if( (!(querytype == "Interpolated Values" | querytype == "All Archived Values") | (TableFormat != "Wide")) == 1,
+		vlb_pickfields << Visibility("Collapse");
+		dtPoints:Return value << Hide(1);
+		dtPoints:Return svalue << Hide(1);
+		dtPoints:Return status << Hide(1);
+	,
+		vlb_pickfields << Visibility("Visible");
+		dtPoints:Return value << Hide(0);
+		dtPoints:Return svalue << Hide(0);
+		dtPoints:Return status << Hide(0);
 	);
 
 	//If step and interval times are linked, update the interval time
 	If( ( SeparateInterval << Get ) == 1,
-		lb_steptimesub << Visibility("visible");
+		lb_steptimesub << Visibility("Visible");
 	,
-		lb_steptimesub << Visibility("collapse");
+		lb_steptimesub << Visibility("Collapse");
 		TimeStep << Set Text( TimeInterval  << Get Text );
 	);
 	
-
+	//Set script to fill in default fields in table
+	Eval( Eval Expr(
+		dtPoints << Subscribe(  "setnewrowdefaults", 
+			OnAddRows( function( {tbl, nrowsadded, firstnewrow}, 
+				newrows = index(firstnewrow+1,firstnewrow+nrowsadded,1);
+				dtPoints:Return value[newrows] = Expr( if( cb_returnvaluedefault << get, "Yes", "No" ) );
+				dtPoints:Return svalue[newrows] = Expr( if( cb_returnsvaluedefault << get, "Yes", "No" ) );
+				dtPoints:Return status[newrows] = Expr( if( cb_returnstatusdefault << get, "Yes", "No" ) );
+			) )
+		)
+	) );
 	
+
 	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
 	// JMP Script
 	JMPJSLout << set text( Char(BuildJMPJSL()));
@@ -287,22 +278,6 @@ UpdateOutput = function( {},
 		lb_matchtype << Visibility("visible")
 	);
 	
-	SizeTextBoxes();
-	
-);
-
-FieldFromLine = function( {field, line}, {r, rx},
-	rx = "^([^;\n\r]+)(;([^;\n\r]+))?(;([^;\n\r]+))?(\n|\r)";
-	if( field == "tag", r = regex( line, rx, "\1"),
-		field == "friendly", r = regex( line, rx, "\3"),
-		field == "friendlytag", r = regex( line, rx, "\3 (\1)"),
-		field == "group", r = regex( line, rx, "\5"),
-		field == "grouptag", r = regex( line, rx, "\5 - \1"),
-		field == "groupfriendly", r = regex( line, rx, "\5 - \3"),
-		field == "groupfriendlytag", r = regex( line, rx, "\5 - \3 (\1)"),
-		r = ""
-	);
-	return(r);
 );
 
 //Create JMP JSL script from options on the form.
@@ -310,17 +285,17 @@ BuildJMPJSL = function( {live=0}, {txt},
 
 	// Get inputs
 	serverName = tb_server << GetText;
-	querytype = rb_querytype << Get Selected;
+	querytype = cb_querytypes << Get Selected;
 	searchfield = rb_SearchField << Get Selected;
 	cnformat = cb_cnformat << Get Selected;
 	matchType = rb_matchtype << Get Selected;
-	searchStrings = Words( TagList << Get Text, "\!N");
+	searchStrings = (dtPoints:Search String << Get Values);
 	calculationBasis = rb_calctype << GetSelected;
 	startTime = TimeStart << GetText;
 	endTime = TimeEnd << GetText;
 	intervalTime = TimeInterval << GetText;
 	tableName = tb_tablename << GetText;
-	
+	hideprefix = cb_hideprefix << Get;
 	If(SeparateInterval << Get(1) == 0,
 		// Use the interval as the time step if there is no separate interval
 		stepTime = intervalTime
@@ -329,17 +304,22 @@ BuildJMPJSL = function( {live=0}, {txt},
 	);
 	TableFormat = rb_tblformat << getSelected;
 	
-	oldcn = Transform Each( {x}, searchStrings,
-		Uppercase( Char( FieldFromLine( "tag", x || "\!N" ) ) )
+	ismissingcn = Transform Each({v, i}, dtPoints:Search String << Get Values, Output("Matrix"), is missing(v) );
+	
+	//Set new column names from friendly names depending which the user picked.
+	oldcn = (dtPoints:Search String << Get Values)[Loc(!ismissingcn)];
+	friendlycn = (dtPoints:Friendly Name << Get Values)[Loc(!ismissingcn)];
+	friendlycn = Transform Each({thiscn, i}, friendlycn, if(is missing(thiscn), oldcn[i], thiscn));
+	
+	if(
+		cnformat == "friendly",
+		newcn = friendlycn,
+		cnformat == "friendlytag",
+		newcn = Transform Each({thiscn, i}, friendlycn, thiscn || " (" || oldcn[i] || ")"),
+		newcn = oldcn
 	);
 	
-	newcn = Transform Each( {x}, searchStrings,
-		FieldFromLine( cnformat, x || "\!N" )
-	);
-	
-	taggroups = Transform Each( {x}, searchStrings,
-		FieldFromLine( "group", x || "\!N" )
-	);
+	show(oldcn, newcn);
 
 	ColToSplit = If( 
 		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
@@ -472,13 +452,17 @@ BuildJMPJSL = function( {live=0}, {txt},
 		oldcn = expr(oldcn);
 		oldcncorrected = oldcn;
 	));
-
+	
+	
+	InsertInto(NewTblExpr, EvalExpr(
+		newcn = expr(newcn);
+	) );
 	If(cnformat != "tag",
+		//set values in the tag column so after pivoted the right names show up
 		//Change Column Names 
 		InsertInto(NewTblExpr, EvalExpr(
-			newcn = expr(newcn);
 			For( i = 1, i <= N Rows( dtLong ), i++,
-				pos = Min( Loc( oldcncorrected, Uppercase( Column( dtLong, "tag" )[i]) ) );
+				pos = Min( Loc( Transform Each({oldcn}, oldcncorrected, Uppercase(oldcn) ), Uppercase( Column( dtLong, "tag" )[i]) ) );
 				If( pos > 0,
 					Column( dtLong, "tag" )[i] = newcn[pos]
 				)
@@ -487,6 +471,12 @@ BuildJMPJSL = function( {live=0}, {txt},
 	);
 
 	If( TableFormat == "Wide",
+	
+		// Capture per-row field return flags from the points table
+		returnValue  = (dtPoints:"Return value"  << Get Values)[Loc(!ismissingcn)];
+		returnSvalue = (dtPoints:"Return svalue" << Get Values)[Loc(!ismissingcn)];
+		returnStatus = (dtPoints:"Return status" << Get Values)[Loc(!ismissingcn)];
+		
 		// Make wide table
 		InsertInto(NewTblExpr, EvalExpr(
 			dtWide = dtLong << Split(
@@ -497,7 +487,50 @@ BuildJMPJSL = function( {live=0}, {txt},
 				Sort by Column Property
 			);
 			close(dtLong, "nosave");
-			dtWide << setName(tableName);
+			
+			// Remove columns the user opted not to return and rename
+			returnValueList  = Expr( returnValue );
+			returnSvalueList = Expr( returnSvalue );
+			returnStatusList = Expr( returnStatus );
+			colsToDelete = {};
+			For Each( {cnname, i}, oldcn,
+				if(((Uppercase(returnValueList[i]) == "YES") + (Uppercase(returnsValueList[i]) == "YES") + (Uppercase(returnStatusList[i]) == "YES") == 1) & (hideprefix == 1),
+					canrename = 1,
+					canrename = 0
+				);
+				show(canrename, returnsValueList);
+				if(
+					Uppercase(returnValueList[i]) != "YES", 
+					show("will delete");
+					Insert Into(colsToDelete, "value " || newcn[i]),
+					canrename == 1,
+					show("renaming");
+					Column(dtWide,"value " || newcn[i]) << set name(newcn[i]),
+					show("nothing")
+				);
+				if(
+					Uppercase(returnsValueList[i]) != "YES", 
+					show("will delete");
+					Insert Into(colsToDelete, "svalue " || newcn[i]),
+					canrename == 1,
+					show("renaming");
+					Column(dtWide,"svalue " || newcn[i]) << set name(newcn[i]),
+					show("nothing")
+				);
+				if(
+					Uppercase(returnStatusList[i]) != "YES", 
+					show("will delete");
+					Insert Into(colsToDelete, "status " || newcn[i]),
+					canrename == 1,
+					show("renaming");
+					Column(dtWide,"status " || newcn[i]) << set name(newcn[i]),
+					show("nothing")
+				);
+			);			
+			If( N Items( colsToDelete ) > 0, dtWide << Delete Columns( colsToDelete ) );
+
+			//Set name
+			dtWide << setName( Expr( tableName ) );
 		));
 		If(cb_tagtonotes << Get,
 			// Save column properties
@@ -521,15 +554,15 @@ BuildJMPJSL = function( {live=0}, {txt},
 					);
 				)
 			))
-		)
+		);
 	,
 		InsertInto(NewTblExpr, EvalExpr(
-			dtLong << setName(tableName);
+			dtLong << setName( Expr( tableName ) );
 		));
 	);
 
 	InsertInto( NewTblExpr , EvalExpr(
-		dt = DataTable(tableName);
+		dt = DataTable( Expr( tableName ) );
 		Note to Users = Expr("\!N**************************************\!N\!N" ||
 			"End of the script to pull this specific data.\!N\!N" ||
 			"Add scripts to manipulate the table or build reports after these comments.\!N" ||
@@ -549,7 +582,24 @@ BuildJMPJSL = function( {live=0}, {txt},
 debug = 0;
 
 //window box, all code is inside this box
-nw = New Window( "PI Web API Query Builder",
+nw = New Window( "Get Aveva PI Data",
+	Show Menu( 0 ), Show Toolbars( 0 ),
+
+	newrows = 1;
+	dtPoints = New Table( "PointstoQuery", Invisible,
+		Add Rows( newrows ),
+		Set Header Height( 35 ),
+		New Column( "Search String", Character, "Nominal", Set Values( {"sinusoid" } ||
+			Repeat( {""}, newrows - 1) ) ),
+		New Column( "Friendly Name", Character, "Nominal", Set Values( Repeat({""},newrows) ) ),
+		New Column( "Return value", Character, "Nominal", Set Values( Repeat({"Yes"},newrows) ) ),
+		New Column( "Return svalue", Character, "Nominal", Set Values( Repeat({"No"},newrows) ) ),
+		New Column( "Return status", Character, "Nominal", Set Values( Repeat({"No"},newrows) ) )
+	);
+	
+	dtPoints << rerun formulas;
+	dtPoints:Search String << Set Display Width(200);
+	dtPoints:Friendly Name << Set Display Width(200);
 
 	//box to hold spacers on left and right side of data
 	H List Box ( 
@@ -560,235 +610,226 @@ nw = New Window( "PI Web API Query Builder",
 		//box to hold heading above all other contents
 		V List Box(
 			Text Box( "Get Data from a PI Server ", << Set Width( 500 ),  << Set Font Size( 20 ) ), 
-			Spacer Box( Size( 12, 12 ) ),
 			
-			H List Box(
+			sbDefault(),
 			
-				V List Box(
+			V List Box(
+				//top row of settings
+				H List Box(
 					
-					//PI Server Name
-					sbDefault(), 
-					
-					stdtxtInput( varname = "tb_server",
-						descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
-						helpmsg = "Enter the name of the PI Web Server." ||
-							"\!N\!NChange the default value using the User Preferences below." ),
-
-					//PI Web API Base URL
-					sbDefault(),
-
-					hlbURL = stdtxtInput( varname = "tb_BaseURL",
-						descmsg = "Web API Base URL", initval = ns:UserPref["Base_Url"], 
-						helpmsg = "Enter the base URL to access the PI Web API." ||
-							"\!N\!NChange the default value using the User Preferences below." );
-					hlbURL[TextEditBox(1)] << setWidth(250);
-					hlbURL,
-					
-					//Max number of values
-					sbDefault(),  
-					
-					stdtxtInput( varname = "tb_maxrows",
-						descmsg = "Max rows", 
-						initval = ns:UserPref["Max_Rows"], 
-						helpmsg = "Enter the maximum number of values to return per tag." ),
-					
-					//Recall Connection
-					window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
-								ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
-					stdcbInput(
-						descmsg = "Recall Connection", 
-						varname = "cb_connpresets",
-						values = Transform Each( {line}, window:connections, {w},
-							w = words(line, ";");
-							w[1] || " (" || w[2] || ")"
-						),
-						fn = function( {this, index},
-							conn = filter each( {line}, window:connections, {w},
-								w = words(line, ";");
-								try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
-							)[1];
-							tb_server << Set Text(words(conn, ";")[2]);
-							tb_BaseURL << Set Text(words(conn, ";")[3]);
-							UpdateOutput();
-						),
-						helpmsg = "Select one of the conections defined in your preferences."
-					),
-					
-					//radio buttons to choose the type of query
-					panelbox("Query Types",
-						rb_querytype = radio box({ "Point Info", "Snapshot Values", "All Archived Values", 
-							"Interpolated Values", "Average", "Count", "Max", "Min", 
-							"Population Standard Deviation", "Range", "Standard Deviation", "Totals"},
-							DefaultTableFormat();
-							UpdateOutput();
-						),
-					),
-					//Start, end, and interval times
-					lb_querytimes = V List Box(
+					//left column on the top
+					V List Box(
 						
-						stdcbInput(
-							descmsg = "Presets: ", 
-							varname = "cb_times",
-							values = "Custom",
-							fn = function( {this, index}, 
-								preset = try( cb_times << Get Selected; );
-								try(	if( !( preset == "Custom" ),
-										nms = Transform Each( {x}, PresetTimes, {x}, x[1] == preset);
-										TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
-										TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
-										TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
-										SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
-										TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
-									);
-									UpdateOutput();
-								);
+							Lineup Box( N Col( 1 ), Spacing( 0, 2 ),
+							
+							//PI Server Name
+							sbDefault(), 
+							
+							stdtxtInput( varname = "tb_server",
+								descmsg = "Server Name", initval = ns:UserPref["PI_Server"], 
+								helpmsg = "Enter the name of the PI Web Server." ||
+									"\!N\!NChange the default value using the User Preferences below.",
+								descwidth = 300
 							),
-							helpmsg = "Examples to demonstrate a few common time configurations."
-						),
-						
-						lb_starttime = V List Box(
+
+							//PI Web API Base URL
 							sbDefault(),
-							stdtxtInput( varname = "TimeStart",
-								descmsg = "Start Time", initval = "t - 1d", 
-								helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
-								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-						),
-						lb_endtime = V List Box(
-							sbDefault(),
-							stdtxtInput( varname = "TimeEnd",
-								descmsg = "End Time", initval = "*", 
-								helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
-								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-						),
-						
-						lb_intervaltime = V List Box(
-							sbDefault(),
-							stdtxtInput( varname = "TimeInterval",
-								descmsg = "Interval", initval = "1h", 
-								helpmsg = "The amount of time pertaining to each row." ||
-									"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
-								fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-						),
-						lb_steptime = V List Box(
-							sbDefault(),
-							V List Box(
-								H List Box(
-									
-									V Center Box( 
-										H List Box(
-											SeparateInterval = Check Box( 
-												"Set step time separate from interval time.", 
-												<< SetFunction( function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) )
-											),
-											<<Set Width( 250 )
-										)
-									),
-											
-									V Center Box( bbHelp("Advanced, check this to run a query where the time period " ||
-										"pertaining to each row is longer or shorter than the time between rows." ||
-										"\!N\!NThis would allow 'moving averages', for example where the 10 minute " ||
-										"average is updated every minute." ||
-										"Step time determines how many rows will be in your data table.  Interval time " ||
-										"determines how much time relates to each row." ||
-										"\!N\!NIf you want a value at 1AM, 2AM, 3AM, then step time = 1h" ||
-										"\!N\!NIf you want the 2AM value to include the average over the last two hours, then interval time = 2h"
-									) )
+
+							stdtxtInput( varname = "tb_BaseURL",
+								descmsg = "Web API Base URL", initval = ns:UserPref["Base_Url"], 
+								helpmsg = "Enter the base URL to access the PI Web API." ||
+									"\!N\!NChange the default value using the User Preferences below.",
+								descwidth = 300
+							),
+							
+							sbDefault(),  
+							
+							stdtxtInput( varname = "tb_maxrows",
+								descmsg = "Max rows", 
+								initval = ns:UserPref["Max_Rows"], 
+								helpmsg = "Enter the maximum number of values to return per tag." ),
+							
+							
+							stdtxtInput( varname = "tb_tablename",
+								descmsg = "Table name", 
+								initval = "Raw PI Data", 
+								helpmsg = "Enter the name of the new data table containing the data from this run."
+							),
+							
+							//Recall Connection
+							window:connections = Eval List({"Default;" || ns:UserPref["PI_Server"] || ";" ||
+										ns:UserPref["Base_Url"]}) || words(ns:UserPref["Connection_List"], "\!N");
+							stdcbInput(
+								descmsg = "Recall Connection", 
+								varname = "cb_connpresets",
+								values = Transform Each( {line}, window:connections, {w},
+									w = words(line, ";");
+									w[1] || " (" || w[2] || ")"
 								),
-								lb_steptimesub = V List Box(
-									sbDefault(),
-									stdtxtInput( varname = "TimeStep",
-										descmsg = "Step Time", initval = "1h", 
-										helpmsg = "The time between each row." ||
-											"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
-											fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
-								)
+								fn = function( {this, index},
+									conn = filter each( {line}, window:connections, {w},
+										w = words(line, ";");
+										try( this << Get Selected == w[1] || " (" || w[2] || ")", 1)
+									)[1];
+									tb_server << Set Text(words(conn, ";")[2]);
+									tb_BaseURL << Set Text(words(conn, ";")[3]);
+									UpdateOutput();
+								),
+								helpmsg = "Select one of the conections defined in your preferences."
+							),
+							stdcbInput(
+								descmsg = "Query Types", 
+								varname = "cb_querytypes",
+								values = { "Point Info", "Snapshot Values", "All Archived Values", 
+									"Interpolated Values", "Average", "Count", "Max", "Min", 
+									"Population Standard Deviation", "Range", "Standard Deviation", "Totals"},
+								fn = function( {this, index},
+									DefaultTableFormat();
+									UpdateOutput();
+								),
+								helpmsg = "Pick the type of query to run."
 							)
 						)
 					),
 					
-					lb_CalcBasis = H List Box(
-						//radio buttons to choose the type of weighting for aggregated data
-						pbCalcBasis = panelbox("Calculation Basis",
-							rb_calctype = radio box({ "TimeWeighted", "EventWeighted", "TimeWeightedContinuous", 
-							"TimeWeightedDiscrete", "EventWeightedExcludeMostRecentEvent",
-							"EventWeightedExcludeEarliestEvent", "EventWeightedIncludeBothEnds" },
-								UpdateOutput();
-							),
-						),
-						bbHelp( "How should summarized values be calculated?  This makes a big difference " ||
-							"when there are 10 archived values one hour with a small value and 1 archived value " ||
-							"the next hour with a large value.", HelpType = "stdradio" )
-					),
+					sbDefault(),
 					
-					stdtxtInput( varname = "tb_tablename",
-						descmsg = "Table name", 
-						initval = "Raw PI Data", 
-						helpmsg = "Enter the name of the new data table containing the data from this run." )
-				),
-				
-				Spacer Box( Size( 24, 24 ) ),
-				
-				hsb_main = H List Box(
+					//Second column on the top
 					V List Box(
-					
-						//radio buttons to choose whether to search for tag or description
-						lb_searchfield = H List Box(
-							panelbox("Search Field",
-								rb_SearchField = radio box({ "tag", "descriptor", "webID"},
-									UpdateOutput();
-								),
-							),
-							bbHelp( "Search for tag names, descriptions, or point webIDs.", 
-								HelpType = "stdradio" )
-						),
 						
-						//List of Tags
-						Spacer Box( Size( 12, 12 ) ),
-						H List Box(
-							tb_tagnameshead = Text Box( "Tag Names",
-									<< Padding( Right( 5 ) ) ),
-							bbHelp( "Enter a list of tag names or descriptions here, " ||
-								"\!N\!NFor Example:" ||
-								"\!Ntag01-AFA;My Tag Name" ||
-								"\!N or:" ||
-								"\!Ntag01-AFA;My Tag Name;Group 1" ),
-							V Center Box( Mouse Box(
-								Text Box( "Resize to Fit Window",
-									<< Set Font Size ( 10 ),
-									<< Font Color ( "blue" ),
-									<< Padding( Left( 20 ) )
+						panelbox("Data Range",
+							//Start, end, and interval times
+							lb_querytimes = V List Box(
+								
+								stdcbInput(
+									descmsg = "Presets: ", 
+									varname = "cb_times",
+									values = "Custom",
+									fn = function( {this, index}, 
+										preset = try( cb_times << Get Selected; );
+										try(	if( !( preset == "Custom" ),
+												nms = Transform Each( {x}, PresetTimes, {x}, x[1] == preset);
+												TimeStart << Set Text( PresetTimes[Loc(Matrix(nms))][1][2] );
+												TimeEnd << Set Text( PresetTimes[Loc(Matrix(nms))][1][3] );
+												TimeInterval << Set Text( PresetTimes[Loc(Matrix(nms))][1][4] );
+												SeparateInterval << Set All( PresetTimes[Loc(Matrix(nms))][1][5] );
+												TimeStep << Set Text( PresetTimes[Loc(Matrix(nms))][1][6] );
+											);
+											UpdateOutput();
+										);
+									),
+									helpmsg = "Examples to demonstrate a few common time configurations."
 								),
-								<< setTrackEnable( 1 ),
-								<< setTrack( Function( {this, clickpt},
-										this << setCursor( "Finger" ); /* button-up tracking - use the hand */
-										If((clickpt[1] == -1 & clickpt[2] == -1 ),
-											(this << child) << Set Font Style ("plain"),
-											(this << child) << Set Font Style ("bold");
+								
+								lb_starttime = V List Box(
+									sbDefault(),
+									stdtxtInput( varname = "TimeStart",
+										descmsg = "Start Time", initval = "t - 1d", 
+										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+										fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+								),
+								lb_endtime = V List Box(
+									sbDefault(),
+									stdtxtInput( varname = "TimeEnd",
+										descmsg = "End Time", initval = "*", 
+										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+										fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+								),
+								
+								lb_intervaltime = V List Box(
+									sbDefault(),
+									stdtxtInput( varname = "TimeInterval",
+										descmsg = "Interval", initval = "1h", 
+										helpmsg = "The amount of time pertaining to each row." ||
+											"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
+										fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
+								),
+								lb_steptime = V List Box(
+									sbDefault(),
+									V List Box(
+										H List Box(
+											
+											V Center Box( 
+												H List Box(
+													SeparateInterval = Check Box( 
+														"Set step time separate from interval time.", 
+														<< SetFunction( function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) )
+													),
+													<<Set Width( 250 )
+												)
+											),
+													
+											V Center Box( bbHelp("Advanced, check this to run a query where the time period " ||
+												"pertaining to each row is longer or shorter than the time between rows." ||
+												"\!N\!NThis would allow 'moving averages', for example where the 10 minute " ||
+												"average is updated every minute." ||
+												"Step time determines how many rows will be in your data table.  Interval time " ||
+												"determines how much time relates to each row." ||
+												"\!N\!NIf you want a value at 1AM, 2AM, 3AM, then step time = 1h" ||
+												"\!N\!NIf you want the 2AM value to include the average over the last two hours, then interval time = 2h"
+											) )
+										),
+										lb_steptimesub = V List Box(
+											sbDefault(),
+											stdtxtInput( varname = "TimeStep",
+												descmsg = "Step Time", initval = "1h", 
+												helpmsg = "The time between each row." ||
+													"\!N\!NEnter a time interval in any PI Format, for example '1h'.",
+													fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
 										)
-								) ),
-								<<SetClickEnable( 1 ),
-								<<SetClick( Function( {this, clickpt, event},
-										If(event == "Pressed", SizeTextBoxes() )
-								) )
-							))
-						),
-						Spacer Box( Size( 2, 2 ) ), 
-						V List Box( 
-							TagListsb = Scroll Box( size(400,400), flexible(1),
-								TagList = Text Edit Box(
-									"Sinusoid",
-									<< Justify Text( Left ),
-									//<< Set Width( 400 ),
-									<< setNlines( 20 ),
-									<< Set Wrap( 2000 ),
-									<< SetFunction( function( {this}, 
-										UpdateOutput(); 
-									) ),
-									<< User Resizable( {1, 1} );
+									)
 								)
 							)
 						),
-						Spacer Box( Size( 2, 2 ) ), 
+						
+						lb_CalcBasis = H List Box(
+							//radio buttons to choose the type of weighting for aggregated data
+							pbCalcBasis = panelbox("Calculation Basis",
+								rb_calctype = radio box({ "TimeWeighted", "EventWeighted", "TimeWeightedContinuous", 
+								"TimeWeightedDiscrete", "EventWeightedExcludeMostRecentEvent",
+								"EventWeightedExcludeEarliestEvent", "EventWeightedIncludeBothEnds" },
+									UpdateOutput();
+								),
+							),
+							bbHelp( "How should summarized values be calculated?  This makes a big difference " ||
+								"when there are 10 archived values one hour with a small value and 1 archived value " ||
+								"the next hour with a large value.", HelpType = "stdradio" )
+						),
+							
+						<<set width(200)
+					)
+				),
+				
+				sbDefault(),
+				
+				//Second row with data table
+				V List Box(
+						
+					//List of Tags
+					H List Box(
+						tb_tagnameshead = Text Box( "Tag Names",
+								<< Padding( Right( 5 ) ) ),
+						bbHelp( "Enter a list of tag names or descriptions here, " ||
+							"\!N\!NFor Example:" ||
+							"\!Ntag01-AFA;My Tag Name" ||
+							"\!N or:" ||
+							"\!Ntag01-AFA;My Tag Name;Group 1" )
+					),
+					Spacer Box( Size( 2, 2 ) ), 
+					V List Box( 
+						V List Box(
+							ntbPoints = dtPoints << New Data Box;
+							ntbPoints << close side panels;
+							ntbPoints << Set Row ID Width( 50 );
+							//show properties(ntbPoints);
+							ntbPoints,
+							//ntbPoints << Get Properties
+						)
+					),
+				),
+				sbDefault(),
+				H List Box(
+					V List Box(
 						H List Box(
 							V Center Box( Text Box( "Column Name Format: ") ),
 							V Center Box( cb_cnformat = Combo Box( {
@@ -814,26 +855,83 @@ nw = New Window( "PI Web API Query Builder",
 						Spacer Box( Size( 2, 2 ) ), 
 						H List Box(
 							cb_tagtonotes = Check Box( "Save tag names in column notes.", UpdateOutput() ),
+							sbDefault(),
 							bbHelp("When checked tag names are saved under the 'notes' property of a column.  Find " ||
 								"this under Column Info."
 							)
 						),
-						/*
-						//Group Columns
-						Spacer Box( Size( 2, 2 ) ), 
-						H List Box(
-							cb_groupcols = Check Box( "Group columns", UpdateOutput() ),
-							bbHelp("When checked columns are grouped together based on the group name specified " ||
-								"in the list above.  There must be at least two tags per group."
+						vlb_pickfields = V List Box(
+							Text Box("Fields to return in ouput by default:"),
+							H List Box(
+								V List Box(
+									H List Box(
+										V List Box(
+											H List Box(
+												cb_returnvaluedefault = Check Box( "value", UpdateOutput() );
+												cb_returnvaluedefault << Set(1);
+												cb_returnvaluedefault,
+												
+											),
+											H List Box(
+												cb_returnsvaluedefault = Check Box( "svalue", UpdateOutput() );
+												cb_returnsvaluedefault << Set(0);
+												cb_returnsvaluedefault,
+											),
+											H List Box(
+												cb_returnstatusdefault = Check Box( "status", UpdateOutput() );
+												cb_returnstatusdefault << Set(0);
+												cb_returnstatusdefault,
+											),
+										),
+										sbDefault(),
+										V Center Box( Mouse Box(
+											Text Box( "Update current table to match defaults",
+												//<< Set Font Size ( 10 ),
+												<< Font Color ( "blue" ),
+												<< Padding( Left( 20 ) ),
+												<< Set Width(100),
+												<< Justify Text( "center" )
+											),
+											<< setTrackEnable( 1 ),
+											<< setTrack( Function( {this, clickpt},
+													this << setCursor( "Finger" ); /* button-up tracking - use the hand */
+													If((clickpt[1] == -1 & clickpt[2] == -1 ),
+														(this << child) << Set Font Style ("plain"),
+														(this << child) << Set Font Style ("bold");
+													)
+											) ),
+											<< SetClickEnable( 1 ),
+											<< SetClick( Function( {this, clickpt, event},
+													If(event == "Pressed", 
+														newrows = index(1,nrow(dtPoints),1);
+														dtPoints:Return value[newrows] = if( cb_returnvaluedefault << get, "Yes", "No" );
+														dtPoints:Return svalue[newrows] = if( cb_returnsvaluedefault << get, "Yes", "No" );
+														dtPoints:Return status[newrows] = if( cb_returnstatusdefault << get, "Yes", "No" );
+													)
+											) )
+										))
+									),
+									H List Box(
+										cb_hideprefix = Check Box( "Hide field type if only returning one.", UpdateOutput() );
+										cb_hideprefix << Set(1);
+										cb_hideprefix,
+									)
+								),
+								sbDefault(),
+								bbHelp("When checked new rows in the tags table on this screen will have a Yes under that column.  " ||
+									"Note that differeent tag types return different types of values - so if you pick the wrong one " ||
+									"the data might appear to be missing. Only works when matching exact column names."
+								)
 							)
-						),
-						*/
-						
-						//radio buttons with examples, when selected the text in the formula edit box is modified
-						Spacer Box( Size( 2, 2 ) ), 
-						H List Box(
-							lb_matchtype = H List Box(
-								Panelbox("Tag Matching Type",
+						)
+					),
+					
+					//radio buttons with examples, when selected the text in the formula edit box is modified
+					Spacer Box( Size( 2, 2 ) ), 
+					H List Box(
+						lb_matchtype = H List Box(
+							Panelbox("Tag Matching Type",
+								H List Box(
 									rb_matchtype = radio box({"Exact", "Starts with", "Ends with", "Contains"},
 										two_rb = rb_matchtype << get selected;
 										if (two_rb == "Exact",
@@ -847,21 +945,25 @@ nw = New Window( "PI Web API Query Builder",
 										);
 										UpdateOutput();
 									),
-								),
-								bbHelp( "Exact is the fastest but does not allow wildcards." ||
-									"\!N\!NStarts with adds a '*' to the beginning of each line." ||
-									"\!N\!NEnds with adds a '*' to the end of each line." ||
-									"\!N\!NContains with adds a '*' to the beginning and end of each line.",
-									HelpType = "stdradio"
+									sbDefault(),
+									bbHelp( "Exact is the fastest but does not allow wildcards." ||
+										"\!N\!NStarts with adds a '*' to the beginning of each line." ||
+										"\!N\!NEnds with adds a '*' to the end of each line." ||
+										"\!N\!NContains with adds a '*' to the beginning and end of each line.",
+										HelpType = "stdradio"
+									)
 								)
 							),
-							Spacer Box( Size( 24, 24 ) ),
-							lb_longwide = H List Box(
-								//radio buttons to choose wide or long format (whether or not to split )
-								longwidepb = panelbox("Table format",
+							
+						),
+						sbDefault(),
+						lb_longwide = H List Box(
+							//radio buttons to choose wide or long format (whether or not to split )
+							longwidepb = panelbox("Table format",
+								H List Box(
 									rb_tblformat = radio box({"Long", "Wide"},
 										//warn user if using wide format with all archived values
-										if( ( ( rb_querytype << Get selected ) == "All Archived Values") & ( ( rb_tblformat << Get selected ) == "Wide"),
+										if( ( ( cb_querytypes << Get selected ) == "All Archived Values") & ( ( rb_tblformat << Get selected ) == "Wide"),
 											rb_tblformat << Background Color("lightorange");
 											New Window( "Huge table warning", Modal, Text Box("Be careful, using a wide table "||
 												"with process data can lead to huge tables.  This should only be selected with lab " ||
@@ -871,116 +973,168 @@ nw = New Window( "PI Web API Query Builder",
 										);
 										UpdateOutput();
 									),
-								),
-								bbHelp("Long: Five columns: Tag, Time, Value, sValue, and Status." ||
-									"\!N\!NWide: One row per time, columns for each value.",
-									HelpType = "stdradio"
+									sbDefault(),
+									bbHelp("Long: Five columns: Tag, Time, Value, sValue, and Status." ||
+										"\!N\!NWide: One row per time, columns for each value.",
+										HelpType = "stdradio"
+									)
 								)
+							),
+					
+							sbDefault(),
+							
+							//Fourth from the left
+							V List Box(
+								
+									//radio buttons to choose whether to search for tag or description
+									lb_searchfield = H List Box(
+										panelbox("Search Field",
+											H List Box(
+												rb_SearchField = radio box({ "tag", "descriptor", "webID"},
+													UpdateOutput();
+												),
+												sbDefault(),
+												bbHelp( "Search for tag names, descriptions, or point webIDs.", 
+													HelpType = "stdradio" )
+											)
+										)
+									)
+							),
+						)
+					),
+					Spacer Box( Size( 20,20 ) ),
+					V List Box(
+						H List Box(
+							Button Box( "Help",
+								Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
+							),
+							Button Box( "Examples",
+								exmplWin = New Window( "Example Queries",
+									V List box(
+										Text Box( "Example Queries", <<Set Font Style("bold" )),
+										
+										Spacer Box( Size( 24, 24 ) ),
+										
+										Text Box("Loading one of these will overwrite all settings, including the tag list, in the window."),
+										
+										Spacer Box( Size( 24, 24 ) ),
+										
+										lb_ExQuery = List Box( Transform Each( {x}, exQueries, x[1]) ),
+										
+										Spacer Box( Size( 24, 24 ) ),
+										H List Box(
+											Button Box( "Load Query", 
+												LoadDefault( ( lb_ExQuery << Get Selected )[1] );
+												exmplWin << Close Window;
+											),
+											Button Box( "Close", exmplWin << Close Window() )
+										),
+										<< Padding( Top(20), Left(20), right(20), bottom(20) )
+									)
+								)
+							),
+							Button Box( "User Preferences",
+								include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
+							),
+						),
+						H List Box(
+							Button Box( "Toggle Desktop Script Display",
+								if((hlbScriptDesktop << Get Visibility) == "Visible",
+									hlbScriptDesktop << Visibility("Collapse"),
+									hlbScriptDesktop << Visibility("Visible")
+								)
+							),
+							Button Box( "Toggle Live Script Display",
+								if((hlbScriptLive << Get Visibility) == "Visible",
+									hlbScriptLive << Visibility("Collapse"),
+									hlbScriptLive << Visibility("Visible")
+								)
+							),
+						),
+						H List Box(
+							Button Box( "Update script contents",
+								UpdateOutput();
+							)
+						),
+						Spacer Box( Size( 20,20 ) ),
+						H List Box(
+							//button to run the script
+							Button Box( "Run query",
+								
+								ns:logusage( "Run query" );
+								
+								UpdateOutput();
+								
+								Eval( Parse( JMPJSLout << get text ) );
+								
+								Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
+								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
+
+								Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
+								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
+
+								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"Tag Table\!", ^dtPoints << Get Script^ )" ) ) ) );
+
+							), //end of 'OK' command button
+							
+							//button to close the window
+							Button Box( "Close/Cancel",
+								nw << Close Window;
 							)
 						)
-					),
-					
-					V list box(
-						//JSL
-						obJMPJSLScript = Outline Box( "JMP JSL to Run Query(Use only for JMP Desktop)",
-							JMPJSLout = Script Box(
-								"", 750, 400
-							),
-							<< close;
-							<< outlinecloseorientation( "Vertical" )
-						),
-						Spacer Box( Size( 2, 2 ) ),
-						bbHelp( "This script is updated to reflect changes in the options in this window." ||
-							"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
-							"will be overwritten the next time any other value in the window is changed.",
-							HelpType = "stdoutline"
-						)
-					),
-						V list box(
-						//JSL
-						obLiveJSLScript = Outline Box( "JMP Live JSL to Run Query(Use only for JMP Live)",
-							LiveJSLout = Script Box(
-								"", 750, 400
-							),
-							<< close;
-							<< outlinecloseorientation( "Vertical" )
-						),
-						Spacer Box( Size( 2, 2 ) ),
-						bbHelp( "This script is updated to reflect changes in the options in this window." ||
-							"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
-							"will be overwritten the next time any other value in the window is changed.",
-							HelpType = "stdoutline"
-						)
 					)
 					
-				)
+				), //end of box to hold command buttons
+						
+				//spacer on bottom of window
+				Spacer Box( Size( 12, 12 ) )
 				
-			), //end of box with options
+			), //end of horizontal box at the top
 			
-			//Box to hold command buttons
-			H List Box(
-			
-				//button to run the script
-				Button Box( "Run query",
-					
-					ns:logusage( "Run query" );
-					
-					Eval( Parse( Eval Expr( Expr( JMPJSLout << get text ) ) ) );
-
-					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
-
-					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-
-				), //end of 'OK' command button
-				
-				//button to close the window
-				Button Box( "Close/Cancel",
-					nw << Close Window;
+			hlbScriptDesktop = H list box(
+				//JMP
+				obJMPJSLScript = Outline Box( "JSL for JMP Desktop",
+					JMPJSLout = Script Box(
+						"", 750, 400
+					),
+					<< outlinecloseorientation( "Horizontal" )
 				),
-				
-				Button Box( "Help",
-					Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
+				Spacer Box( Size( 2, 2 ) ),
+				bbHelp( "This script is updated to reflect changes in the options in this window." ||
+					"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
+					"will be overwritten the next time any other value in the window is changed.",
+					HelpType = "stdoutline"
 				),
-				
-				Button Box( "Examples",
-					exmplWin = New Window( "Example Queries",
-						V List box(
-							Text Box( "Example Queries", <<Set Font Style("bold" )),
-							
-							lb_ExQuery = List Box( Transform Each( {x}, exQueries, x[1]) ),
-							
-							Spacer Box( Size( 24, 24 ) ),
-							H List Box(
-								Button Box( "Load Query", 
-									LoadDefault( ( lb_ExQuery << Get Selected )[1] );
-									exmplWin << Close Window;
-								),
-								Button Box( "Close", exmplWin << Close Window() )
-							),
-							<< Padding( Top(20), Left(20), right(20), bottom(20) )
-						)
-					)
+				<<Visibility("Collapse")
+			),
+			hlbScriptLive = H list box(
+				//JMP Live
+				obLiveJSLScript = Outline Box( "JSL for JMP Live)",
+					LiveJSLout = Script Box(
+						"", 750, 400
+					),
+					<< outlinecloseorientation( "Horizontal" )
 				),
-				
-				Button Box( "User Preferences",
-					include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
-				)
-				
-			), //end of box to hold command buttons
-					
-			//spacer on bottom of window
-			Spacer Box( Size( 12, 12 ) )
+				Spacer Box( Size( 2, 2 ) ),
+				bbHelp( "This script is updated to reflect changes in the options in this window." ||
+					"\!N\!NYou can modify the text in this box and then run the query but your changes " ||
+					"will be overwritten the next time any other value in the window is changed.",
+					HelpType = "stdoutline"
+				),
+				<<Visibility("Collapse")
+			),
 			
 		), //end of vertical box with heading above all other contents
 		
 		//spacer in right side of window
 		Spacer Box( Size( 12, 12 ) )
 		
-	) //end of horizontal box for spacers on left and right side
+	), //end of horizontal box for spacers on left and right side
+
+	<< On Close(try(dtPoints << Close Window, print("failed to close data table")))
 	
 ); //end of window box
+
 
 
 // Example Queries to load
@@ -989,62 +1143,80 @@ exQueries = {
 		"Find PI Tags",
 		"Find PI tags matching a name.",
 		{
-			rb_querytype << Set( 1 ),
+			cb_querytypes << Set( 1 ),
 			rb_SearchField << Set( 1 ),
 			rb_matchtype << Set( 4 ),
-			TagList << Set Text( "inusoi"),
-			rb_tblformat << Set( 1 )
-			
-			
+			rb_tblformat << Set( 1 ),
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
 		}
 	},
 	{
 		"Find PI Tags by Description",
 		"Find PI tags matching a description.",
 		{
-			rb_querytype << Set( 1 ),
+			cb_querytypes << Set( 1 ),
 			rb_SearchField << Set( 2 ),
 			rb_matchtype << Set( 4 ),
-			TagList << Set Text( "Sinusoid"),
-			rb_tblformat << Set( 1 )
-			
-			
+			rb_tblformat << Set( 1 ),
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
 		}
 	},
 	{
 		"Interpolated Values",
 		"Return evenly-spaced values for a tag.",
 		{
-			rb_querytype << Set( 4 ),		//Interpolated Values
+			cb_querytypes << Set( 4 ),		//Interpolated Values
 			TimeStart << Set Text( "t - 2d" ),
 			TimeEnd << Set Text( "*" ),
 			TimeInterval << Set Text( "1h" ),
 			SeparateInterval << Set( 0 ),
 			TimeStep << Set Text( "1h" ),
 			//rb_calctype << Set( 1 )
-			rb_SearchField << Set( 1 ),	//tag
+			rb_SearchField << Set( 1 ),		//tag
 			rb_matchtype << Set( 1 ),		//exact
-			TagList << Set Text( "Sinusoid"),
-			rb_tblformat << Set( 2 )		//wide
-			
-			
+			rb_tblformat << Set( 2 ),		//wide
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
 		}
 	},
 	{
 		"Average Value",
 		"Return daily average values",
 		{
-			rb_querytype << Set( 5 ),
+			cb_querytypes << Set( 5 ),
 			TimeStart << Set Text( "t - 10d + 6h" ),
 			TimeEnd << Set Text( "t + 6h" ),
 			TimeInterval << Set Text( "24h" ),
 			SeparateInterval << Set( 0 ),
 			TimeStep << Set Text( "24h" ),
 			//rb_calctype << Set( 1 )
-			rb_SearchField << Set( 1 ),	//tag
+			rb_SearchField << Set( 1 ),		//tag
 			rb_matchtype << Set( 1 ),		//exact
-			TagList << Set Text( "Sinusoid"),
-			rb_tblformat << Set( 2 )		//wide
+			rb_tblformat << Set( 2 ),		//wide
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
 		}
 	}
 };
@@ -1059,7 +1231,6 @@ LoadDefault = function( {defname},
 		);
 		
 		DisableUpdate = 0;
-		UpdateOutput();
 	);
 	DisableUpdate = 0;
 );
