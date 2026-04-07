@@ -184,11 +184,12 @@ ns:GetRequest = Function({endpoint, queryParameters},
 	);
 	request = Eval( request );
 	result = request << send;
+	show(request << GetLastURL);
 	if(!(request << IsSuccess),
 		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
 		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
 		errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
-		//errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
+		errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
 		Throw(errorMessage);
 	);
 	return(parseJSON(result));
@@ -208,33 +209,98 @@ ns:DataServerIdRequest = function({serverName},
 	return(result["WebId"])
 );
 
-// Finds points by tag name or description and returns their WebIDs and names
-ns:PointRequest = Function({dataServerID, searchStrings, searchField, matchType},
+
+/* 
+    Function: PointRequest
+        ---Prototype---
+        ns:PointRequest( String, String, String, String )
+        ---------------
+        Searches for PI Points on a specified PI Data Server using tag name
+        and description search strings, returning matching point Web IDs
+        and names.
+
+    Arguments:
+        dataServerID - Web ID of the PI Data Server to search.
+        searchStringsTag - A list of strings containing the tag-name search terms.
+        searchStringsDesc - A list of strings containing the description search terms.
+        matchType - Defines how the search strings are matched. Must be one of
+            "Exact", "Starts with", "Ends with", or "Contains".
+
+    Behavior:
+        Builds a PI Web API point search query from the provided search strings,
+        applying wildcards based on the selected matchType. The query is executed
+        in batches using the PI Web API until either all matching points are
+        retrieved or the configured row limit is reached.
+
+        The function combines all individual search criteria using logical OR
+        and pages through results using the API's startIndex parameter.
+
+    Example:
+        > ids, names = ns:PointRequest(
+        >     dataServerWebId,
+        >     {"SINUSOID"},
+        >     {"Test Point"},
+        >     "Contains"
+        > );
+        > show(names);
+
+    Returns:
+        pointIDs - A list of Web IDs for the matching PI Points.
+        pointNames - A list of names for the matching PI Points.
+
+    Note:
+        This function relies on the PI Web API Point Search endpoint and
+        is subject to API limits such as maximum page size and request limits.
+        
+*/
+
+ns:PointRequest = Function({dataServerID, searchStringsTag, searchStringsDesc, matchType},
 	{DEFAULT LOCAL},
-	if(!contains({"tag", "descriptor"}, searchField),
-		throw("'searchField' must be one of \!"tag\!" or \!"descriptor\!" in 'ns:PointRequest'.")
+	if(!(Type(searchStringsTag) == "List"), Throw("tag search field must be a list of strings, (was " || Type(searchStringsTag) || ")"));
+	if(!(Type(searchStringsDesc) == "List"), Throw("description search field must be a list of strings, (was " || Type(searchStringsDesc) || ")"));
+	if(!(length(searchStringsTag) == length(searchStringsDesc)),
+		throw("tag and desc search lists must be the same length")
 	);
-	if(!contains({"Exact", "Starts with", "Ends with", "Contains"}, matchType),
-		throw("'matchType' must be one of \!"Exact\!", \!"Starts with\!", \!"Ends with\!" or \!"Contains\!" in 'ns:PointRequest'.")
+	if(!contains({"Pattern", "Starts with", "Ends with", "Contains"}, matchType),
+		throw("'matchType' must be one of \!"Pattern\!", \!"Starts with\!", \!"Ends with\!" or \!"Contains\!" in 'ns:PointRequest'.")
 	);
 
-	// Add wildcards to searchString depending on matchType
-	for(i=1, i<=NItems(searchStrings), i++,
-		searchString = searchStrings[i];
-		match(matchType,
-			"Starts with", searchString = searchString || "*",
-			"Ends with", searchString = "*" || searchString,
-			"Contains", searchString = "*" || searchString || "*"
+	buildSearchFragment = function({ss, matchType, desc},
+		if(!(Type(ss) == "String"), Throw("Search field must be a list of strings, (one value was a " || Type(ss) || ")"));
+		if(ss == "",
+			"", 
+			match(matchType,
+				"Starts with", sswc = desc || ":=\!"" || ss || "*" || "\!"",
+				"Ends with", sswc = desc || ":\!"" || "*" || ss || "\!"",
+				"Contains", sswc = desc || ":\!"" || "*" || ss || "*" || "\!"",
+				sswc = desc || ":\!"" ||ss || "\!""
+			);
 		);
-		// Quote the searchString to allow white space
-		searchString = "\!"" || searchString || "\!"";
-		// Build the search query string
-		// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/topics/pipoint-search-query-syntax.html
-		searchString = "(" || searchField || ":" || searchString || ")";
-		searchStrings[i] = searchString;
 	);
-	// Combine all individual queries with ORs
-	searchQuery = ConcatItems(searchStrings, "OR");
+
+	// Add wildcards to searchString fragment depending on matchType	
+	sfTag = Transform Each({ss}, searchStringsTag, buildSearchFragment(ss, matchType, "tag" ));
+	sfDesc = Transform Each({ss}, searchStringsDesc, buildSearchFragment(ss, matchType, "descriptor" ));
+	show(sfTag, sfDesc);
+	//put lists into a list with a item for each row that contains lists for each search field
+	Eval( Eval Expr(
+		sfList = ns:ziplists({ expr(sfTag),expr(sfDesc)}, "lists")
+	) );
+	show(sfList);
+	sfListFiltered = Transform each({sf}, sfList, 
+		Filter Each({sfp}, sf, length(sfp)>0)
+	);
+	show(sfListFiltered);
+	sfListFiltered = Filter each({sfp}, sfListFiltered, n items(sfp)>0);
+	show(sfListFiltered);
+	//sfListPartstoJoin = Transform Each({sf}, sfListFiltered, "{" || concat items(sf, "}AND{") || "}";);
+	sfListPartstoJoin = Transform Each({sf}, sfListFiltered, "" || concat items(sf, " AND ") || "";);
+	//sfListPartstoJoin = Transform Each({sf}, sfListFiltered, concat items(sf, ")&("););
+	show(sfListPartstoJoin);
+	
+	searchQuery = "(" || concat items(sfListPartstoJoin, ") OR (") || ")";
+	show(searchQuery);
+	write(searchQuery);
 
 	params = associativeArray();
 	params["dataServerWebId"] = dataServerID;

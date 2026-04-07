@@ -269,14 +269,6 @@ UpdateOutput = function( {},
 	obLiveJSLScript << SetOpen(1);
 	LiveJSLout << Reformat;
 	obLiveJSLScript << setopen(wasLiveOpen);
-
-	If( searchfield == "webID",
-		lb_matchtype << set(1); // Exact matches only
-		tb_tagnameshead << Set Text( "Web IDs" );
-		lb_matchtype << Visibility("collapse"),
-		tb_tagnameshead << Set Text( "Tag Names" );
-		lb_matchtype << Visibility("visible")
-	);
 	
 );
 
@@ -289,7 +281,8 @@ BuildJMPJSL = function( {live=0}, {txt},
 	searchfield = rb_SearchField << Get Selected;
 	cnformat = cb_cnformat << Get Selected;
 	matchType = rb_matchtype << Get Selected;
-	searchStrings = (dtPoints:Search String << Get Values);
+	TagSearchStrings = (dtPoints:Tag Search << Get Values);
+	DescSearchStrings = (dtPoints:Desc Search << Get Values);
 	calculationBasis = rb_calctype << GetSelected;
 	startTime = TimeStart << GetText;
 	endTime = TimeEnd << GetText;
@@ -304,10 +297,10 @@ BuildJMPJSL = function( {live=0}, {txt},
 	);
 	TableFormat = rb_tblformat << getSelected;
 	
-	ismissingcn = Transform Each({v, i}, dtPoints:Search String << Get Values, Output("Matrix"), is missing(v) );
+	ismissingcn = Transform Each({v, i}, dtPoints:TagSearch << Get Values, Output("Matrix"), is missing(v) );
 	
 	//Set new column names from friendly names depending which the user picked.
-	oldcn = (dtPoints:Search String << Get Values)[Loc(!ismissingcn)];
+	oldcn = (dtPoints:Tag Search << Get Values)[Loc(!ismissingcn)];
 	friendlycn = (dtPoints:Friendly Name << Get Values)[Loc(!ismissingcn)];
 	friendlycn = Transform Each({thiscn, i}, friendlycn, if(is missing(thiscn), oldcn[i], thiscn));
 	
@@ -318,8 +311,6 @@ BuildJMPJSL = function( {live=0}, {txt},
 		newcn = Transform Each({thiscn, i}, friendlycn, thiscn || " (" || oldcn[i] || ")"),
 		newcn = oldcn
 	);
-	
-	show(oldcn, newcn);
 
 	ColToSplit = If( 
 		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
@@ -342,6 +333,12 @@ BuildJMPJSL = function( {live=0}, {txt},
 		 "and to build reports.\!N\!N" ||
 		 "Start of the generic function definition." ||
 		 "\!N\!N**************************************\!N");
+		 
+		 CreatedWithAddInID = Expr( ns:metadata_aa["id"] );
+		 CreatedWithAddInVersion = Expr( ns:metadata_aa["addinVersion"] );
+		 CreatedWithAddInState = Expr( ns:metadata_aa["state"] );
+		 CreatedWithAddInBuildDate = Expr(  format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
+			ns:padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || ns:padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) );
 	));
 	
 	if(
@@ -389,14 +386,8 @@ BuildJMPJSL = function( {live=0}, {txt},
 	));
 
 	// Get pointIDs
-	If(searchField == "webID",
-		InsertInto(NewTblExpr,
-			evalExpr(pointIDs = expr(searchStrings))
-		)
-	,//else, need to request pointIDs
-		InsertInto(NewTblExpr,
-			evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(oldcn), expr(searchfield), expr(matchType)))
-		)
+	InsertInto(NewTblExpr,
+		evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
 	);
 
 	// Call a Table function depending on the query type
@@ -498,33 +489,23 @@ BuildJMPJSL = function( {live=0}, {txt},
 					canrename = 1,
 					canrename = 0
 				);
-				show(canrename, returnsValueList);
 				if(
 					Uppercase(returnValueList[i]) != "YES", 
-					show("will delete");
 					Insert Into(colsToDelete, "value " || newcn[i]),
 					canrename == 1,
-					show("renaming");
-					Column(dtWide,"value " || newcn[i]) << set name(newcn[i]),
-					show("nothing")
+					try( Column(dtWide,"value " || newcn[i]) << set name(newcn[i]) )
 				);
 				if(
-					Uppercase(returnsValueList[i]) != "YES", 
-					show("will delete");
+					Uppercase(returnsValueList[i]) != "YES",
 					Insert Into(colsToDelete, "svalue " || newcn[i]),
 					canrename == 1,
-					show("renaming");
-					Column(dtWide,"svalue " || newcn[i]) << set name(newcn[i]),
-					show("nothing")
+					try( Column(dtWide,"svalue " || newcn[i]) << set name(newcn[i]) )
 				);
 				if(
 					Uppercase(returnStatusList[i]) != "YES", 
-					show("will delete");
 					Insert Into(colsToDelete, "status " || newcn[i]),
 					canrename == 1,
-					show("renaming");
-					Column(dtWide,"status " || newcn[i]) << set name(newcn[i]),
-					show("nothing")
+					try( Column(dtWide,"status " || newcn[i]) << set name(newcn[i]) )
 				);
 			);			
 			If( N Items( colsToDelete ) > 0, dtWide << Delete Columns( colsToDelete ) );
@@ -585,12 +566,12 @@ debug = 0;
 nw = New Window( "Get Aveva PI Data",
 	Show Menu( 0 ), Show Toolbars( 0 ),
 
-	newrows = 1;
+	newrows = 10;
 	dtPoints = New Table( "PointstoQuery", Invisible,
 		Add Rows( newrows ),
 		Set Header Height( 35 ),
-		New Column( "Search String", Character, "Nominal", Set Values( {"sinusoid" } ||
-			Repeat( {""}, newrows - 1) ) ),
+		New Column( "Tag Search", Character, "Nominal", Set Values( Repeat( {""}, newrows ) ) ),
+		New Column( "Desc Search", Character, "Nominal", Set Values( Repeat( {""}, newrows ) ) ),
 		New Column( "Friendly Name", Character, "Nominal", Set Values( Repeat({""},newrows) ) ),
 		New Column( "Return value", Character, "Nominal", Set Values( Repeat({"Yes"},newrows) ) ),
 		New Column( "Return svalue", Character, "Nominal", Set Values( Repeat({"No"},newrows) ) ),
@@ -598,7 +579,8 @@ nw = New Window( "Get Aveva PI Data",
 	);
 	
 	dtPoints << rerun formulas;
-	dtPoints:Search String << Set Display Width(200);
+	dtPoints:Tag Search << Set Display Width(200);
+	dtPoints:Desc Search << Set Display Width(200);
 	dtPoints:Friendly Name << Set Display Width(200);
 
 	//box to hold spacers on left and right side of data
@@ -808,23 +790,32 @@ nw = New Window( "Get Aveva PI Data",
 					//List of Tags
 					H List Box(
 						tb_tagnameshead = Text Box( "Tag Names",
-								<< Padding( Right( 5 ) ) ),
-						bbHelp( "Enter a list of tag names or descriptions here, " ||
-							"\!N\!NFor Example:" ||
-							"\!Ntag01-AFA;My Tag Name" ||
-							"\!N or:" ||
-							"\!Ntag01-AFA;My Tag Name;Group 1" )
+							<< Padding( Right( 5 ) ) ),
+							bbHelp( "Enter the tags you want to query here." ||
+								"\!N\!NFill in any combination of the PI Tag or Description" ||
+								"fields to select which tags are returned. All populated fields must match; " ||
+								"entering multiple values on the same row is treated as an 'and'." ||
+								"\!N\!NEnter a friendly name to choose the output column name. If left blank, it will " ||
+								"default to the PI Point name." ||
+								"\!N\!NTag Match Type controls how the entered values are matched:" ||
+								"\!N  • Pattern – Use an explicit match pattern; wildcard characters are optional." ||
+								"\!N  • Starts with – Matches values that begin with the entered text." ||
+								"\!N  • Ends with – Matches values that end with the entered text." ||
+								"\!N  • Contains – Matches values that contain the entered text anywhere." ||
+								"\!N\!NPI Tag and PI Description values are passed directly to PI, so matching behavior " ||
+								"is consistent with other PI tools." ||
+								"\!N\!NThe Return __ columns select which fields are returned for each row. The default values " ||
+								"are set below." ||
+								"\!N\!NNote that this is a full JMP table, so you can enter column formulas and add additional " ||
+								"detail columns. This table will also be appended to the output table." )
 					),
 					Spacer Box( Size( 2, 2 ) ), 
-					V List Box( 
-						V List Box(
-							ntbPoints = dtPoints << New Data Box;
-							ntbPoints << close side panels;
-							ntbPoints << Set Row ID Width( 50 );
-							//show properties(ntbPoints);
-							ntbPoints,
-							//ntbPoints << Get Properties
-						)
+					H List Box( 
+						Spacer Box( Size( 1, 140 ) ), 
+						ntbPoints = dtPoints << New Data Box;
+						ntbPoints << close side panels;
+						ntbPoints << Set Row ID Width( 50 );
+						ntbPoints,
 					),
 				),
 				sbDefault(),
@@ -838,16 +829,19 @@ nw = New Window( "Get Aveva PI Data",
 								"friendlytag"
 							},
 								UpdateOutput();
-							) ),
+							);
+							cb_cnformat << set(2);
+							cb_cnformat ),
 							V Center Box( bbHelp( "Choose how tags should be named in the resulting data table." ||
 								"This determines the names in the 'tag' or 'expr' column in long tables, and " ||
 								"column names in the wide format." ||
 								"\!N\!NExample input in section above:" ||
-								"\!Ntag01-AFA;My Tag Name;Group 1" ||
+								"\!Npi tag: sinusoid" ||
+								"\!Nfriendly name: Important Tag" ||
 								"\!N\!NResults in these tag or column names:" ||
-								"\!Ntag: tag01-AFA" ||
-								"\!Nfriendly: My Tag Name" ||
-								"\!Nfriendlytag: My Tag Name (tag01-AFA)"
+								"\!Ntag: sinusoid" ||
+								"\!Nfriendly: Important Tag" ||
+								"\!Nfriendlytag: Important Tag (sinusoid)"
 							) )
 						),
 						
@@ -913,7 +907,7 @@ nw = New Window( "Get Aveva PI Data",
 									),
 									H List Box(
 										cb_hideprefix = Check Box( "Hide field type if only returning one.", UpdateOutput() );
-										cb_hideprefix << Set(1);
+										cb_hideprefix << Set(0);
 										cb_hideprefix,
 									)
 								),
@@ -932,21 +926,11 @@ nw = New Window( "Get Aveva PI Data",
 						lb_matchtype = H List Box(
 							Panelbox("Tag Matching Type",
 								H List Box(
-									rb_matchtype = radio box({"Exact", "Starts with", "Ends with", "Contains"},
-										two_rb = rb_matchtype << get selected;
-										if (two_rb == "Exact",
-											SearchType = "Exact";
-											two_rb == "Starts with",
-											SearchType = "Starts with";
-											two_rb == "Ends with",
-											SearchType = "Ends with";
-											two_rb == "Contains",
-											SearchType = "Contains";
-										);
+									rb_matchtype = radio box({"Pattern", "Starts with", "Ends with", "Contains"},
 										UpdateOutput();
 									),
 									sbDefault(),
-									bbHelp( "Exact is the fastest but does not allow wildcards." ||
+									bbHelp( "Patern is the fastest when no wildcards are present." ||
 										"\!N\!NStarts with adds a '*' to the beginning of each line." ||
 										"\!N\!NEnds with adds a '*' to the end of each line." ||
 										"\!N\!NContains with adds a '*' to the beginning and end of each line.",
@@ -990,11 +974,11 @@ nw = New Window( "Get Aveva PI Data",
 									lb_searchfield = H List Box(
 										panelbox("Search Field",
 											H List Box(
-												rb_SearchField = radio box({ "tag", "descriptor", "webID"},
+												rb_SearchField = radio box({ "tag", "descriptor"},
 													UpdateOutput();
 												),
 												sbDefault(),
-												bbHelp( "Search for tag names, descriptions, or point webIDs.", 
+												bbHelp( "Search for tag names or descriptions.", 
 													HelpType = "stdradio" )
 											)
 										)
@@ -1005,6 +989,9 @@ nw = New Window( "Get Aveva PI Data",
 					Spacer Box( Size( 20,20 ) ),
 					V List Box(
 						H List Box(
+							Button Box( "About",
+								include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinAbout.jsl" )
+							),
 							Button Box( "Help",
 								Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
 							),
@@ -1135,8 +1122,6 @@ nw = New Window( "Get Aveva PI Data",
 	
 ); //end of window box
 
-
-
 // Example Queries to load
 exQueries = {
 	{
@@ -1149,7 +1134,9 @@ exQueries = {
 			rb_tblformat << Set( 1 ),
 			dtPoints << Select Where(1),
 			dtPoints << Delete Rows,
-			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
 			dtPoints:Return value << Set Values( {"Yes" } ),
 			dtPoints:Return svalue << Set Values( {"No" } ),
@@ -1166,7 +1153,9 @@ exQueries = {
 			rb_tblformat << Set( 1 ),
 			dtPoints << Select Where(1),
 			dtPoints << Delete Rows,
-			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"" } ),
+			dtPoints:Desc Search << Set Values( {"sinusoid" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
 			dtPoints:Return value << Set Values( {"Yes" } ),
 			dtPoints:Return svalue << Set Values( {"No" } ),
@@ -1189,7 +1178,9 @@ exQueries = {
 			rb_tblformat << Set( 2 ),		//wide
 			dtPoints << Select Where(1),
 			dtPoints << Delete Rows,
-			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
 			dtPoints:Return value << Set Values( {"Yes" } ),
 			dtPoints:Return svalue << Set Values( {"No" } ),
@@ -1212,7 +1203,8 @@ exQueries = {
 			rb_tblformat << Set( 2 ),		//wide
 			dtPoints << Select Where(1),
 			dtPoints << Delete Rows,
-			dtPoints:Search String << Set Values( {"sinusoid" } ),
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
 			dtPoints:Return value << Set Values( {"Yes" } ),
 			dtPoints:Return svalue << Set Values( {"No" } ),

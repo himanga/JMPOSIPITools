@@ -87,3 +87,142 @@ ns:TryAppendError = function({ex, lst, prepend, stillthrow = 0},
 		if(stillthrow == 1, Throw(errm), Return(0));
 	)
 );
+
+/*
+    Function: ziplists
+        ---Prototype---
+        ns:ziplists( List | Associative Array, "list"|"Associative Array" )
+        ---------------
+        Zips multiple lists together into a list of
+        associative arrays.
+
+        The argument may be either:
+        - a list of lists (numeric keys used), or
+        - an associative array of lists (keys used as names)
+
+    Arguments:
+        data - A list of lists, or an associative array of lists
+
+    Example:
+        &gt; ns:ziplists( { {"a","b"}, {11,12} } )
+        &gt; { {{1,"a"},{2,11}}, {{1,"b"},{2,12}} }
+
+        &gt; ns:ziplists(
+        &gt;     [ letters = {"a","b"},
+        &gt;       numbers = {11,12} ]
+        &gt; )
+        &gt; { {{letters,"a"},{numbers,11}},
+        &gt;   {{letters,"b"},{numbers,12}} }
+
+    Returns:
+        A list of associative arrays or a list of lists
+
+    Note:
+        All lists must be the same length.
+*/
+ns:ziplists = function( {data, returntype="Associative Arrays"},
+
+    Local(
+        {
+            keys,
+            values,
+            count,
+            i,
+            j,
+            result = {}
+        },
+        
+        // Must be list or associative array
+        If( !( Is List( data ) | Is Associative Array( data ) ),
+            Throw( "Argument must be a list or associative array" )
+        );
+        
+        
+		if(!((uppercase(returntype) == "ASSOCIATIVE ARRAYS") |	(uppercase(returntype) == "LISTS")),
+			Throw("returntype must be 'associative arrays' or 'lists'")
+		);
+
+        // Normalize keys and values
+        If( Is Associative Array( data ),
+            (
+                keys   = data << get keys;
+                values = data << get values;
+            ),
+            (
+                keys   = 1 :: N Items( data );
+                values = data;
+            )
+        );
+
+        // Must contain at least one list
+        If( Length( values ) == 0,
+            Throw( "At least one list is required" )
+        );
+
+        // Validate all elements are lists
+        For( j = 1, j <= N Items( values ), j++,
+            If( !Is List( values[j] ),
+                Throw( "All elements must be lists" )
+            )
+        );
+
+        // Validate equal length
+        count = N Items( values[1] );
+        For( j = 2, j <= N Items( values ), j++,
+            If( N Items( values[j] ) != count,
+                Throw( "All lists must be the same length" )
+            )
+        );
+        
+        // Build zipped result
+        For( i = 1, i <= count, i++, //for each item in the lists to zip
+            result[length(result)+1] = 
+                Local( {smallresult},
+					if(uppercase(returntype) == "ASSOCIATIVE ARRAYS",
+						smallresult = Associative Array();,
+						uppercase(returntype) == "LISTS",
+						smallresult = {}
+					);
+                    For( j = 1, j <= N Items( values ), j++,
+						if(uppercase(returntype) == "ASSOCIATIVE ARRAYS",
+							smallresult[keys[j]] = values[j][i];
+							uppercase(returntype) == "LISTS",
+							Insert Into(smallresult, Eval List({values[j][i]}))
+						)
+                    );
+                    smallresult
+                );
+        );
+        result
+    )
+);
+
+/*
+    Function: padnum
+        ---Prototype---
+        ns:padnum( Number )
+        ---------------
+        Formats a number as two characters by prefixing a zero
+        for single-digit values.
+
+    Arguments:
+        x - A numeric value to be converted to text.
+
+    Returns:
+        A string representation of the number. If the number is
+        less than 10, it is prefixed with a leading zero.
+
+    Example:
+        > ns:padnum(3)
+        > "03"
+
+        > ns:padnum(12)
+        > "12"
+
+    Note:
+        This function always returns text, even when the input
+        is already two digits or greater.
+*/
+ns:padnum = function( {x},
+    if( x < 10, "0", "" ) || char(x);
+);
