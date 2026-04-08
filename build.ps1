@@ -118,6 +118,8 @@ else {
     Write-Host "`n`nUnit tests succeeded."
 }
 
+Write-Host "`nbuildDate: "$updatetime
+
 #Cleanup
 if (Test-Path $TempPath) {
     Remove-Item -Recurse -Force -Confirm:$false $TempPath

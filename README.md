@@ -6,33 +6,12 @@ Source code is available on github:
 https://github.com/himanga/JMPOSIPIData
 
 ## Building from Source
-Copy the contents of the src folder to a zip file, then change the file extension to .jmpaddin
+Copy the contents of the src folder to a zip file, then change the file extension to .jmpaddin.  This will not update the help file documentation, for that install both NaturalDocs and the jsl-hamcrest add-in and build the add-in using the included powershell script.
 
-Title: To Modify this Add-in
-
-About: Developer Dependencies
-
-To make changes to and rebuild this add-in (this is rare), you will also need:
-
-- Natural Docs (program to install)
-- jsl-hamcrest add-in for JMP (add-in for JMP, available on community.jmp.com)
-- Powershell
-- git (program to install)
-- GitHub
-
-About: Steps
-
-- Clone git repository
-- Make changes
-- Document code using natural docs language
-- Update and run unit tests
-- Run the powershell script to build the add-in, adjusting the path to the Natural Docs exe if necessary.
-- test add-in
-- Update the version number and deploy prod version of add-in
-- Commit changes in git and push commits to github.
-- Open a pull request on github
+See CONTRIBUTING.md for more details.
 
 ## Contributors
 - [Isaac Himanga](https://github.com/himanga)
 - [Predictum Inc.](https://predictum.com/)
-- [Jonathan Austin](jonathanrobaustin@gmail.com)
+- [Marc Champagne](mailto:Marc.Champagne@adm.com)
+- [Jonathan Austin](mailto:jonathanrobaustin@gmail.com)
