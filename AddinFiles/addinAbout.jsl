@@ -72,7 +72,7 @@ Eval( Eval Expr( aboutwin = new window( "About",
 			),
 		),
 		text box( "Build Date: " || format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
-			ns:padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) ),
+			ns:padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || ns:padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) ),
 		text box( "ID: " || char( ns:metadata_aa["id"], << set width( 500 ) ) ),
 		spacer box( size( 10, 10 ) ),
 		H list box(
