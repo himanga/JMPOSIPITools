@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [HEAD]
+## [0.1302]
 
 ### Added
 - 
@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 - 
 
 ### Fixed
-- 
+- Fixed bug in About screen
 
 ## [0.1301]
 
