@@ -34,4 +34,3 @@ Try(
 	),
 	exception_msg
 );
-Quit("No Save");

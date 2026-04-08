@@ -9,7 +9,7 @@ ut test( "Test", "One", Expr(
 	);
 ));
 
-ut test( "Main", "assignparsename", Expr(
+ut test( "addinToolstest", "assignparsename", Expr(
 
     ut assert value(
         ns:assignparsename( "foo", "bar" );
@@ -209,4 +209,118 @@ ut test("addinToolstest", "TryAppendError", Expr(
         "When stillthrow=0 function should swallow exception and return a value"
     );
 
+));
+
+ut test( "addinToolstest", "ziplists", Expr(
+
+    // List of lists (numeric keys), returning arrays
+    ut assert that(
+        Expr( ns:ziplists( { {"a","b"}, {11, 12} } ) ),
+        ut equal to(
+            eval list({
+				associative array({{1,"a"},{2,11}}),
+				associative array({{1,"b"},{2,12}})
+			});
+        ),
+        "Zips unnamed lists using numeric keys"
+    );
+
+    // List of lists (numeric keys), returning lists
+    ut assert that(
+        Expr( ns:ziplists( { {"a","b"}, {11, 12} }, "lists" ) ),
+        ut equal to( { { "a", 11 }, { "b", 12 } } ),
+        "Zips unnamed lists using numeric keys returning lists"
+    );
+    
+    // Associative array of lists (named keys)
+    ut assert that(
+        Expr( ns:ziplists(
+            Associative Array({
+				{"letters",  {"a","b"} },
+				{"numbers", {11,12} }
+			} )
+        ) ),
+        ut equal to(
+            eval list({
+				associative array({{"letters","a"},{"numbers",11}}),
+				associative array({{"letters","b"},{"numbers",12}})
+			});
+        ),
+        "Zips named lists using associative array keys"
+    );
+
+    // Wrong return type
+    ut assert that(
+        Expr( ns:ziplists( { {"a","b"}, {11, 12} }, "wrong" ) ),
+        ut throws( ut contains( "returntype" ) ),
+        "Errors when returntype is wrong type"
+    );
+
+    // Missing argument
+    ut assert that(
+        Expr( ns:ziplists() ),
+        ut throws( ut anything() ),
+        "Errors when argument is missing"
+    );
+
+    // Invalid argument type
+    ut assert that(
+        Expr( ns:ziplists( 123 ) ),
+        ut throws( ut contains( "must be a list" ) ),
+        "Errors when argument is not a list or associative array"
+    );
+
+    // Non-list element
+    ut assert that(
+        Expr( ns:ziplists( { {"a","b"}, 3 } ) ),
+        ut throws( ut contains( "must be lists" ) ),
+        "Errors when an element is not a list"
+    );
+
+    // Length mismatch
+    ut assert that(
+        Expr( ns:ziplists( { {"a","b"}, {1} } ) ),
+        ut throws( ut contains( "same length" ) ),
+        "Errors when lists have different lengths"
+    );
+
+));
+
+ut test( "addinToolsTest", "padnum", Expr(
+
+    ut assert that(
+		expr( ns:padnum( 0 ) ),
+		ut equal to( "00" ),
+		"Pads zero with leading zero"
+    );
+
+    ut assert that(
+        expr( ns:padnum( 3 ) ),
+        ut equal to( "03" ),
+        "Pads single-digit numbers with leading zero"
+    );
+
+    ut assert that(
+        expr( ns:padnum( 9 ) ),
+        ut equal to( "09" ),
+        "Pads highest single-digit number"
+    );
+
+    ut assert that(
+        expr( ns:padnum( 10 ) ),
+        ut equal to( "10" ),
+        "Does not pad two-digit numbers"
+    );
+
+    ut assert that(
+        expr( ns:padnum( 142 ) ),
+        ut equal to( "142" ),
+        "Leaves larger numbers unchanged"
+    );
+
+    ut assert that(
+        Expr( ns:padnum( ) ),
+        ut throws( ut anything() ),
+        "Function should error when argument is missing"
+    );
 ));

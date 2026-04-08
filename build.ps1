@@ -88,7 +88,7 @@ $process = Start-Process -FilePath $jmpPath `
     -PassThru -Wait
 
 Write-Output "Opening JMP to run tests"
-$jslPath = Join-Path -Path (Get-Location) -ChildPath "Tests/RunTestsStandalone.jsl"
+$jslPath = Join-Path -Path (Get-Location) -ChildPath "Tests/RunTestsStandaloneQuitWhenDone.jsl"
 $tempfilePath = Join-Path -Path "$Env:TEMP" -ChildPath "temp-unittestoutput.txt"
 
 $process = Start-Process -FilePath $jmpPath `
