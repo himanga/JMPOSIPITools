@@ -39,7 +39,7 @@ To release a new version:
         - minJmpVersion if necessary
     - In CHANGELOG.md: 
         - Change HEAD to match the version number
-- Rebuild the add-in, save this copy to upload it to GitHub adn the JMP Community for production releases
+- Rebuild the add-in, rename the .jmpaddin file to be simila to 'JMPOSIPITools_x.xx' and save this copy so you can upload it to GitHub and the JMP Community for production releases
 - If a production release - create a new tag in the format 'vx.xx' with a message similar to 'Version x.xx'
 - Create a release in github from that tag, copy the changelog section into the release details
 - Upload the .jmpaddin file to thhe assets for that release
