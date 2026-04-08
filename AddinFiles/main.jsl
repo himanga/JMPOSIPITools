@@ -160,7 +160,6 @@ UpdateOutput = function( {},
 
 	querytype = cb_querytypes << Get Selected;
 	calctype = rb_calctype << Get Selected;
-	searchfield = rb_SearchField << Get Selected;
 	
 	//Show or hide time options
 	if( querytype == "Point Info",
@@ -168,7 +167,6 @@ UpdateOutput = function( {},
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
-		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		rb_tblformat << Set( 1 );
 		lb_longwide << Visibility("collapse");
@@ -179,7 +177,6 @@ UpdateOutput = function( {},
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
-		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		rb_tblformat << Set( 1 );
 		lb_longwide << Visibility("collapse");
@@ -190,7 +187,6 @@ UpdateOutput = function( {},
 		lb_CalcBasis << Visibility("collapse");
 		lb_intervaltime << Visibility("collapse");
 		lb_steptime << Visibility("collapse");
-		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
 	,
@@ -200,7 +196,6 @@ UpdateOutput = function( {},
 		lb_intervaltime << Visibility("visible");
 		lb_steptime << Visibility("collapse");
 		lb_CalcBasis << Visibility("collapse");
-		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
 	,
@@ -216,18 +211,27 @@ UpdateOutput = function( {},
 			lb_steptime << Visibility("collapse")
 		);
 		lb_CalcBasis << Visibility("visible");
-		lb_searchfield << Visibility("visible");
 		lb_matchtype << Visibility("visible");
 		lb_longwide << Visibility("visible");
 	);
 	
+	//make sure points table is still open
+	if(!(Type(dtPoints)=="Table"), Throw("Unable to access the points data table - was it closed?  Try restarting the add-in.") );
+	try(colnames = dtPoints << get column names("string");, Throw("Unable to access the points data table - was it closed?  Try restarting the add-in."));
+	if(length(loc(colnames, "Tag Search"))<1, Throw("Unable to find column 'Tag Search', was it deleted or renamed?"));
+	if(length(loc(colnames, "Desc Search"))<1, Throw("Unable to find column 'Desc Search', was it deleted or renamed?"));
+	if(length(loc(colnames, "Friendly Name"))<1, Throw("Unable to find column 'Friendly Name', was it deleted or renamed?"));
+	
 	//show or hide fields to return different columns
 	if( (!(querytype == "Interpolated Values" | querytype == "All Archived Values") | (TableFormat != "Wide")) == 1,
 		vlb_pickfields << Visibility("Collapse");
-		dtPoints:Return value << Hide(1);
-		dtPoints:Return svalue << Hide(1);
-		dtPoints:Return status << Hide(1);
+		try(dtPoints:Return value << Hide(1));
+		try(dtPoints:Return svalue << Hide(1));
+		try(dtPoints:Return status << Hide(1));
 	,
+		if(length(loc(colnames, "Return value"))<1, Throw("Unable to find column 'Return value', was it deleted or renamed?"));
+		if(length(loc(colnames, "Return svalue"))<1, Throw("Unable to find column 'Return svalue', was it deleted or renamed?"));
+		if(length(loc(colnames, "Return status"))<1, Throw("Unable to find column 'Return status', was it deleted or renamed?"));
 		vlb_pickfields << Visibility("Visible");
 		dtPoints:Return value << Hide(0);
 		dtPoints:Return svalue << Hide(0);
@@ -278,7 +282,6 @@ BuildJMPJSL = function( {live=0}, {txt},
 	// Get inputs
 	serverName = tb_server << GetText;
 	querytype = cb_querytypes << Get Selected;
-	searchfield = rb_SearchField << Get Selected;
 	cnformat = cb_cnformat << Get Selected;
 	matchType = rb_matchtype << Get Selected;
 	TagSearchStrings = (dtPoints:Tag Search << Get Values);
@@ -596,8 +599,9 @@ nw = New Window( "Get Aveva PI Data",
 			sbDefault(),
 			
 			V List Box(
+				
 				//top row of settings
-				H List Box(
+				Outline Box( "Query type and date range", H List Box(
 					
 					//left column on the top
 					V List Box(
@@ -780,35 +784,29 @@ nw = New Window( "Get Aveva PI Data",
 							
 						<<set width(200)
 					)
-				),
+				) ),
 				
 				sbDefault(),
 				
 				//Second row with data table
-				V List Box(
-						
-					//List of Tags
-					H List Box(
-						tb_tagnameshead = Text Box( "Tag Names",
-							<< Padding( Right( 5 ) ) ),
-							bbHelp( "Enter the tags you want to query here." ||
-								"\!N\!NFill in any combination of the PI Tag or Description" ||
-								"fields to select which tags are returned. All populated fields must match; " ||
-								"entering multiple values on the same row is treated as an 'and'." ||
-								"\!N\!NEnter a friendly name to choose the output column name. If left blank, it will " ||
-								"default to the PI Point name." ||
-								"\!N\!NTag Match Type controls how the entered values are matched:" ||
-								"\!N  • Pattern – Use an explicit match pattern; wildcard characters are optional." ||
-								"\!N  • Starts with – Matches values that begin with the entered text." ||
-								"\!N  • Ends with – Matches values that end with the entered text." ||
-								"\!N  • Contains – Matches values that contain the entered text anywhere." ||
-								"\!N\!NPI Tag and PI Description values are passed directly to PI, so matching behavior " ||
-								"is consistent with other PI tools." ||
-								"\!N\!NThe Return __ columns select which fields are returned for each row. The default values " ||
-								"are set below." ||
-								"\!N\!NNote that this is a full JMP table, so you can enter column formulas and add additional " ||
-								"detail columns. This table will also be appended to the output table." )
-					),
+				Outline Box( "Tag List", H List Box(
+					bbHelp( "Enter the tags you want to query here." ||
+						"\!N\!NFill in any combination of the PI Tag or Description" ||
+						"fields to select which tags are returned. All populated fields must match; " ||
+						"entering multiple values on the same row is treated as an 'and'." ||
+						"\!N\!NEnter a friendly name to choose the output column name. If left blank, it will " ||
+						"default to the PI Point name." ||
+						"\!N\!NTag Match Type controls how the entered values are matched:" ||
+						"\!N  • Pattern – Use an explicit match pattern; wildcard characters are optional." ||
+						"\!N  • Starts with – Matches values that begin with the entered text." ||
+						"\!N  • Ends with – Matches values that end with the entered text." ||
+						"\!N  • Contains – Matches values that contain the entered text anywhere." ||
+						"\!N\!NPI Tag and PI Description values are passed directly to PI, so matching behavior " ||
+						"is consistent with other PI tools." ||
+						"\!N\!NThe Return __ columns select which fields are returned for each row. The default values " ||
+						"are set below." ||
+						"\!N\!NNote that this is a full JMP table, so you can enter column formulas and add additional " ||
+						"detail columns. This table will also be appended to the output table." ),
 					Spacer Box( Size( 2, 2 ) ), 
 					H List Box( 
 						Spacer Box( Size( 1, 140 ) ), 
@@ -817,9 +815,9 @@ nw = New Window( "Get Aveva PI Data",
 						ntbPoints << Set Row ID Width( 50 );
 						ntbPoints,
 					),
-				),
+				) ),
 				sbDefault(),
-				H List Box(
+				Outline Box( "Output Options", H List Box(
 					V List Box(
 						H List Box(
 							V Center Box( Text Box( "Column Name Format: ") ),
@@ -963,115 +961,29 @@ nw = New Window( "Get Aveva PI Data",
 										HelpType = "stdradio"
 									)
 								)
-							),
-					
-							sbDefault(),
-							
-							//Fourth from the left
-							V List Box(
-								
-									//radio buttons to choose whether to search for tag or description
-									lb_searchfield = H List Box(
-										panelbox("Search Field",
-											H List Box(
-												rb_SearchField = radio box({ "tag", "descriptor"},
-													UpdateOutput();
-												),
-												sbDefault(),
-												bbHelp( "Search for tag names or descriptions.", 
-													HelpType = "stdradio" )
-											)
-										)
-									)
-							),
+							)
 						)
 					),
 					Spacer Box( Size( 20,20 ) ),
 					V List Box(
-						H List Box(
-							Button Box( "About",
-								include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinAbout.jsl" )
-							),
-							Button Box( "Help",
-								Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
-							),
-							Button Box( "Examples",
-								exmplWin = New Window( "Example Queries",
-									V List box(
-										Text Box( "Example Queries", <<Set Font Style("bold" )),
-										
-										Spacer Box( Size( 24, 24 ) ),
-										
-										Text Box("Loading one of these will overwrite all settings, including the tag list, in the window."),
-										
-										Spacer Box( Size( 24, 24 ) ),
-										
-										lb_ExQuery = List Box( Transform Each( {x}, exQueries, x[1]) ),
-										
-										Spacer Box( Size( 24, 24 ) ),
-										H List Box(
-											Button Box( "Load Query", 
-												LoadDefault( ( lb_ExQuery << Get Selected )[1] );
-												exmplWin << Close Window;
-											),
-											Button Box( "Close", exmplWin << Close Window() )
-										),
-										<< Padding( Top(20), Left(20), right(20), bottom(20) )
-									)
-								)
-							),
-							Button Box( "User Preferences",
-								include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
-							),
-						),
-						H List Box(
-							Button Box( "Toggle Desktop Script Display",
-								if((hlbScriptDesktop << Get Visibility) == "Visible",
-									hlbScriptDesktop << Visibility("Collapse"),
-									hlbScriptDesktop << Visibility("Visible")
-								)
-							),
-							Button Box( "Toggle Live Script Display",
-								if((hlbScriptLive << Get Visibility) == "Visible",
-									hlbScriptLive << Visibility("Collapse"),
-									hlbScriptLive << Visibility("Visible")
-								)
-							),
-						),
-						H List Box(
-							Button Box( "Update script contents",
-								UpdateOutput();
+						Button Box( "Toggle Desktop Script Display",
+							if((hlbScriptDesktop << Get Visibility) == "Visible",
+								hlbScriptDesktop << Visibility("Collapse"),
+								hlbScriptDesktop << Visibility("Visible")
 							)
 						),
-						Spacer Box( Size( 20,20 ) ),
-						H List Box(
-							//button to run the script
-							Button Box( "Run query",
-								
-								ns:logusage( "Run query" );
-								
-								UpdateOutput();
-								
-								Eval( Parse( JMPJSLout << get text ) );
-								
-								Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
-								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
-
-								Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-
-								Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"Tag Table\!", ^dtPoints << Get Script^ )" ) ) ) );
-
-							), //end of 'OK' command button
-							
-							//button to close the window
-							Button Box( "Close/Cancel",
-								nw << Close Window;
+						Button Box( "Toggle Live Script Display",
+							if((hlbScriptLive << Get Visibility) == "Visible",
+								hlbScriptLive << Visibility("Collapse"),
+								hlbScriptLive << Visibility("Visible")
 							)
+						),
+						Button Box( "Update script contents",
+							UpdateOutput();
 						)
 					)
 					
-				), //end of box to hold command buttons
+				) ), 
 						
 				//spacer on bottom of window
 				Spacer Box( Size( 12, 12 ) )
@@ -1110,6 +1022,67 @@ nw = New Window( "Get Aveva PI Data",
 				),
 				<<Visibility("Collapse")
 			),
+			Spacer Box( Size( 20,20 ) ),
+			H List Box(
+				//button to run the script
+				Button Box( "Run query",
+					
+					ns:logusage( "Run query" );
+					
+					UpdateOutput();
+					
+					Eval( Parse( JMPJSLout << get text ) );
+					
+					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
+					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
+
+					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
+					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
+
+					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"Tag Table\!", ^dtPoints << Get Script^ )" ) ) ) );
+
+				), //end of 'OK' command button
+				
+				//button to close the window
+				Button Box( "Close/Cancel",
+					nw << Close Window;
+				),
+				Spacer Box( Size( 20, 20 ) ),
+				Button Box( "Examples",
+					exmplWin = New Window( "Example Queries",
+						V List box(
+							Text Box( "Example Queries", <<Set Font Style("bold" )),
+							
+							Spacer Box( Size( 24, 24 ) ),
+							
+							Text Box("Loading one of these will overwrite all settings, including the tag list, in the window."),
+							
+							Spacer Box( Size( 24, 24 ) ),
+							
+							lb_ExQuery = List Box( Transform Each( {x}, exQueries, x[1]) ),
+							
+							Spacer Box( Size( 24, 24 ) ),
+							H List Box(
+								Button Box( "Load Query", 
+									LoadDefault( ( lb_ExQuery << Get Selected )[1] );
+									exmplWin << Close Window;
+								),
+								Button Box( "Close", exmplWin << Close Window() )
+							),
+							<< Padding( Top(20), Left(20), right(20), bottom(20) )
+						)
+					)
+				),
+				Button Box( "About",
+					include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinAbout.jsl" )
+				),
+				Button Box( "Help",
+					Web(  "file://" || Convert File Path( ns:addinhome ) || "Docs/index.html#File:Help/Help.txt", JMP window )
+				),
+				Button Box( "User Preferences",
+					include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
+				)
+			)
 			
 		), //end of vertical box with heading above all other contents
 		
@@ -1129,7 +1102,6 @@ exQueries = {
 		"Find PI tags matching a name.",
 		{
 			cb_querytypes << Set( 1 ),
-			rb_SearchField << Set( 1 ),
 			rb_matchtype << Set( 4 ),
 			rb_tblformat << Set( 1 ),
 			dtPoints << Select Where(1),
@@ -1148,7 +1120,6 @@ exQueries = {
 		"Find PI tags matching a description.",
 		{
 			cb_querytypes << Set( 1 ),
-			rb_SearchField << Set( 2 ),
 			rb_matchtype << Set( 4 ),
 			rb_tblformat << Set( 1 ),
 			dtPoints << Select Where(1),
@@ -1173,7 +1144,6 @@ exQueries = {
 			SeparateInterval << Set( 0 ),
 			TimeStep << Set Text( "1h" ),
 			//rb_calctype << Set( 1 )
-			rb_SearchField << Set( 1 ),		//tag
 			rb_matchtype << Set( 1 ),		//exact
 			rb_tblformat << Set( 2 ),		//wide
 			dtPoints << Select Where(1),
@@ -1198,7 +1168,6 @@ exQueries = {
 			SeparateInterval << Set( 0 ),
 			TimeStep << Set Text( "24h" ),
 			//rb_calctype << Set( 1 )
-			rb_SearchField << Set( 1 ),		//tag
 			rb_matchtype << Set( 1 ),		//exact
 			rb_tblformat << Set( 2 ),		//wide
 			dtPoints << Select Where(1),
@@ -1242,8 +1211,3 @@ cb_times << Set Items( Transform Each( {x}, PresetTimes, x[1] ) );
 LoadDefault("Interpolated Values");
 cb_tagtonotes << Set(1,1);
 UpdateOutput();
-
-//Open script windows if user pref is set
-If( ns:UserPref["Open_Script_Windows"] == "yes",
-	obJMPJSLScript << Set Open;
-);

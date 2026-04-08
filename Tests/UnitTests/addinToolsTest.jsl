@@ -288,38 +288,33 @@ ut test( "addinToolstest", "ziplists", Expr(
 
 ut test( "addinToolsTest", "padnum", Expr(
 
-    ut assert value(
-        ns:padnum( 0 ),
-        "00",
-        ut equal to( "00" ),
-        "Pads zero with leading zero"
+    ut assert that(
+		expr( ns:padnum( 0 ) ),
+		ut equal to( "00" ),
+		"Pads zero with leading zero"
     );
 
-    ut assert value(
-        ns:padnum( 3 ),
-        "03",
+    ut assert that(
+        expr( ns:padnum( 3 ) ),
         ut equal to( "03" ),
         "Pads single-digit numbers with leading zero"
     );
 
-    ut assert value(
-        ns:padnum( 9 ),
-        "09",
+    ut assert that(
+        expr( ns:padnum( 9 ) ),
         ut equal to( "09" ),
         "Pads highest single-digit number"
     );
 
-    ut assert value(
-        ns:padnum( 10 ),
-        "10",
+    ut assert that(
+        expr( ns:padnum( 10 ) ),
         ut equal to( "10" ),
         "Does not pad two-digit numbers"
     );
 
-    ut assert value(
-        ns:padnum( 42 ),
-        "42",
-        ut equal to( "42" ),
+    ut assert that(
+        expr( ns:padnum( 142 ) ),
+        ut equal to( "142" ),
         "Leaves larger numbers unchanged"
     );
 
@@ -329,4 +324,3 @@ ut test( "addinToolsTest", "padnum", Expr(
         "Function should error when argument is missing"
     );
 ));
-``

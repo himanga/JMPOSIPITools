@@ -1,0 +1,3 @@
+﻿//Runs unit tests - designed to be called from powershell with no user input
+Include("RunTestsStandalone.jsl");
+Quit("No Save");
