@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [HEAD]
 
 ### Added
-- 
+- Script to check all user connections (search for CheckConnectionsinUserPref in help)
 
 ### Changed
 - Behind the scenes: better testing and function isolation.
