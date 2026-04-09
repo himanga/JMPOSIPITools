@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 - 
 
 ### Changed
-- 
+- Behind the scenes: better testing and function isolation.
 
 ### Fixed
 - Fixed bug in About screen

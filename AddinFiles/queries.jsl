@@ -1,6 +1,31 @@
 Names Default To Here(1);
 
-// Encodes a string to be URL friendly
+/*
+    Function: UrlEncode
+        ---Prototype---
+        ns:UrlEncode( String text )
+        -------------------------
+        Encodes a string using URL percent-encoding.
+
+    Parameters:
+    - text - A string to be percent-encoded.
+
+    Returns:
+        A URL-safe encoded string.
+
+    Examples:
+        > ns:UrlEncode( "hello world" )
+        > "hello%20world"
+
+        > ns:UrlEncode( "100%" )
+        > "100%25"
+
+    Notes:
+        - Only operates on strings.
+        - Throws an error for missing or non-string input.
+        - This function is pure and has no side effects.
+*/
+
 ns:UrlEncode = function({str},
 	
 	if(!(Is String(str)), throw("Argument must be a string"));
@@ -32,61 +57,204 @@ ns:UrlEncode = function({str},
 	)
 );
 
-// Returns the UTC to local timezone difference
-// Add to UTC time to get local time
-ns:GetLocalTimeZoneDifference = function({},
-	{DEFAULT LOCAL},
-	try(
-		return(ns:timeDifference)
-	,
-		if(
-			ns:live==1,
-			request = Expr( New HTTP Request(
-				URL(ns:baseURL),
-				Method("GET"),
-				Username("%_UID_%"),
-				Password("%_PWD_%"),
-			) ),
-			request = Expr( New HTTP Request(
-				URL(ns:baseURL),
-				Method("GET"),
-				password(":")
-			) );
-		);
-		if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
-			Insert Into(request, Expr( Secure(0)) );
-		);
-		request = Eval( request );
-		request << Send;
-		headers = request << Get Response Headers();
-		utc = headers["date"];
-		timeDifference = Round((Today() - utc)/InHours(1)) * InHours(1);
-		// Store the time difference so this query only happens once
-		ns:timeDifference = timeDifference;
-		return(timeDifference)
-	)
+/*
+    Function: ComputeLocalTimeZoneDifference
+        ---Prototype---
+        ns:ComputeLocalTimeZoneDifference( Numeric )
+        ---------------
+        Computes the local time zone offset from UTC based on a provided
+        UTC date value.
+
+    Arguments:
+        utcHeaderDate - A UTC time value (typically from an HTTP Date header).
+
+    Returns:
+        A numeric duration representing the difference between local time
+        and UTC, rounded to the nearest hour.
+
+    Example:
+        > offset = ns:ComputeLocalTimeZoneDifference( utcDate );
+        > localTime = utcDate + offset;
+
+    Note:
+        This is a pure function with no side effects. It performs no I/O and
+        does not reference or modify global state.
+        
+*/
+ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
+    Round((Today() - utcHeaderDate) / InHours(1)) * InHours(1)
 );
 
-// Converts PI times to a timestamp that JMP can use
-// Optionally parse the timestamp into a JMP datetime
+
+/*
+    Function: FetchUtcHeader
+        ---Prototype---
+        ns:FetchUtcHeader( Number islive = 0 )
+        -----------------
+        Sends a lightweight HTTP GET request to the configured base URL
+        and extracts the UTC timestamp from the HTTP response headers.
+
+    Parameters:
+    - islive - When nonzero, sends credentials with the request.
+
+    Returns:
+        A numeric JMP date representing the UTC time reported
+        by the server Date response header.
+
+    Examples:
+        > utc = ns:FetchUtcHeader();
+        > utc + InHours(1);
+
+    Notes:
+        - This function performs network I/O.
+        - No caching or timezone adjustment is performed.
+        - Errors raised by HTTP Request or Send are propagated.
+*/
+ns:FetchUtcHeader = function( {islive = 0},
+    {DEFAULT LOCAL},
+
+    requestExpr =
+        If( islive,
+            Expr(
+                New HTTP Request(
+                    URL( ns:baseURL ),
+                    Method( "GET" ),
+                    Username( "%_UID_%" ),
+                    Password( "%_PWD_%" )
+                )
+            ),
+            Expr(
+                New HTTP Request(
+                    URL( ns:baseURL ),
+                    Method( "GET" ),
+                    Password( ":" )
+                )
+            )
+        );
+
+    If(
+        Lowercase( ns:UserPref["Allow_Insecure_Connections"] ) == "yes",
+        Insert Into( requestExpr, Expr( Secure( 0 ) ) )
+    );
+
+    request = Eval( requestExpr );
+    request << Send;
+
+    headers = request << Get Response Headers();
+
+    headers["date"]
+);
+
+/*
+    Function: GetLocalTimeZoneDifference
+        ---Prototype---
+        ns:GetLocalTimeZoneDifference()
+        -------------------------------
+        Returns the local time zone offset from UTC. The value is cached
+        after the first computation.
+
+    Returns:
+        A numeric duration representing the local time offset from UTC.
+
+    Examples:
+        > offset = ns:GetLocalTimeZoneDifference();
+        > localTime = utcTime + offset;
+
+    Notes:
+        - Performs network I/O on first call only.
+        - Subsequent calls return a cached value.
+        - Cache is stored in the namespace as `timeDifference`.
+*/
+ns:GetLocalTimeZoneDifference = function({},
+    {utc, tz},
+
+    If(
+        Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
+            ns:timeDifference,
+
+        utc = ns:FetchUtcHeader( ns:live );
+        tz  = ns:ComputeLocalTimeZoneDifference( utc );
+        ns:timeDifference = tz;
+        tz
+    )
+);
+
+/*
+    Function: PiTimeToTimestamp
+        ---Prototype---
+        ns:PiTimeToTimestamp( List piTimes, Boolean parseTimestamp = 0 )
+        -----------------
+        Converts a list of PI time expressions into JMP timestamps.
+
+    Parameters:
+    - piTimes - A list of PI time expressions (for example "*-1h", "*").
+    - parseTimestamp - If true, returned timestamps are converted to
+                       local JMP date values using <ParseDateString>.
+
+    Returns:
+        A list of timestamps. Values are strings by default or numeric
+        JMP date values when parseTimestamp is enabled.
+
+    Examples:
+        > ns:PiTimeToTimestamp( {"*"} )
+        > {"2024-01-02T12:34:56Z"}
+
+        > ns:PiTimeToTimestamp( {"*"}, 1 )
+        > { 3908464496 }
+
+    Notes:
+        - This function performs PI Web API requests.
+        - Input list must not be empty.
+*/
 ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
-	{DEFAULT LOCAL},
-	timestamps = {};
+    { params, fetchTimestamp, timestamps },
+
+    If(
+        !Is List( piTimes ) | N Items( piTimes ) == 0,
+        Throw( "PiTimeToTimestamp requires a non-empty list of PI times" )
+    );
+
 	// Do an empty calculation at a each time just to get a Timestamp back
 	params = ["expression" => 1, "selectedFields" => "Items.Timestamp"];
-	for(i=1, i<=nItems(piTimes), i++,
-		params["time"] = piTimes[i];
+	timestamps = Transform Each({piTime, i}, piTimes, 
+		params["time"] = piTime;
 		result = ns:GetRequest("calculation/times/", params);
 		ts = result["Items"][1]["Timestamp"];
 		if(parseTimestamp,
 			ts = ns:ParseDateString(ts)
 		);
-		InsertInto(timestamps, ts);
+		ts;
 	);
 	Return(timestamps)
 );
 
-// Converts PI durations to a length in seconds. e.g. 1h-30m = 1800s
+
+/*
+    Function: PiDurationToSeconds
+        ---Prototype---
+        ns:PiDurationToSeconds( List piDurations )
+        -----------------
+        Converts PI duration expressions to durations in seconds.
+
+    Parameters:
+    - piDurations - A list of PI duration expressions
+                    (for example {"1h", "1h-30m"}).
+
+    Returns:
+        A list of numeric durations (seconds), aligned
+        with the input list.
+
+    Examples:
+        > ns:PiDurationToSeconds( {"1h"} )
+        > {3600}
+
+        > ns:PiDurationToSeconds( {"1h-30m"} )
+        > {1800}
+
+    Notes:
+        - Uses <PiTimeToTimestamp> for PI time resolution.
+        - Durations are evaluated relative to a fixed anchor time.
+*/
 ns:PiDurationToSeconds = function({piDurations},
 	{DEFAULT LOCAL},
 	piTimes = {};
@@ -104,25 +272,86 @@ ns:PiDurationToSeconds = function({piDurations},
 	return(durations)
 );
 
-// Parses dates of the format returned by the web API and returns a local time
-ns:ParseDateString = Function({dateString},
-	{DEFAULT LOCAL},
-	If(EndsWith(dateString, "Z"),
-		// Z suffix means UTC time. Convert to local.
-		dateString = Left(dateString, Length(dateString) - 1);
-		localTime = ParseDate(dateString) + ns:GetLocalTimeZoneDifference();
-		Return(localTime)
-	,
-		Return(ParseDate(dateString))
-	);
+
+/*
+    Function: ParseDateString
+        ---Prototype---
+        ns:ParseDateString( String dateString )
+        ----------------
+        Parses an ISO‑8601 date string and returns a local JMP date value.
+
+    Parameters:
+    - dateString - A date-time string in the form
+                   "yyyy-mm-ddThh:mm:ss" or
+                   "yyyy-mm-ddThh:mm:ssZ"
+
+    Returns:
+        A numeric JMP date value in local time.
+
+    Examples:
+        > ns:ParseDateString( "2024-01-02T12:34:56" )
+        > ns:ParseDateString( "2024-01-02T12:34:56Z" )
+
+    Notes:
+        - A trailing "Z" indicates UTC and will be converted to local time.
+        - Non-string inputs throw an error.
+*/
+ns:ParseDateString = Function( {dateString},
+    {DEFAULT LOCAL},
+
+    If(
+        !Is String( dateString ) | Length( dateString ) == 0,
+        Throw( "ParseDateString requires a non-empty string" )
+    );
+
+    isUTC      = Ends With( dateString, "Z" );
+    baseString = If( isUTC,
+        Left( dateString, Length( dateString ) - 1 ),
+        dateString
+    );
+
+    parsed = ParseDate( baseString );
+
+    If( isUTC,
+        parsed + ns:GetLocalTimeZoneDifference(),
+        parsed
+    )
 );
 
-// Converts a JMP date to a UTC datestring
+/*
+    Function: ToDateString
+        ---Prototype---
+        ns:ToDateString( Numeric date )
+        ----------------
+        Converts a JMP date value to a UTC ISO-8601 date-time string.
+
+    Parameters:
+    - date - A JMP numeric date value (seconds since epoch).
+
+    Returns:
+        A UTC date-time string in ISO-8601 format:
+        "yyyy-mm-ddThh:mm:ssZ"
+
+    Examples:
+        > ns:ToDateString( Today() )
+        > "2026-04-09T13:00:00Z"   // example
+
+    Notes:
+        - Input must be a numeric JMP date value.
+        - Conversion uses <GetLocalTimeZoneDifference>.
+        - Always appends "Z" to indicate UTC.
+*/
 ns:ToDateString = Function({date},
-	{DEFAULT LOCAL},
-	utcDate = date - ns:GetLocalTimeZoneDifference();
-	datestring = FormatDate(utcDate, "yyyy-mm-ddThh:mm:ss");
-	Return(datestring || "Z")
+    {utcDate, dateString},
+
+    If( !Is Number( date ),
+        Throw( "ToDateString requires a numeric JMP date value" )
+    );
+
+    utcDate    = date - ns:GetLocalTimeZoneDifference();
+    dateString = FormatDate( utcDate, "yyyy-mm-ddThh:mm:ss" );
+
+    dateString || "Z"
 );
 
 /* Gets a comma separated list of statuses from a result like 
@@ -184,7 +413,6 @@ ns:GetRequest = Function({endpoint, queryParameters},
 	);
 	request = Eval( request );
 	result = request << send;
-	show(request << GetLastURL);
 	if(!(request << IsSuccess),
 		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
 		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
@@ -281,27 +509,17 @@ ns:PointRequest = Function({dataServerID, searchStringsTag, searchStringsDesc, m
 	// Add wildcards to searchString fragment depending on matchType	
 	sfTag = Transform Each({ss}, searchStringsTag, buildSearchFragment(ss, matchType, "tag" ));
 	sfDesc = Transform Each({ss}, searchStringsDesc, buildSearchFragment(ss, matchType, "descriptor" ));
-	show(sfTag, sfDesc);
 	//put lists into a list with a item for each row that contains lists for each search field
 	Eval( Eval Expr(
 		sfList = ns:ziplists({ expr(sfTag),expr(sfDesc)}, "lists")
 	) );
-	show(sfList);
 	sfListFiltered = Transform each({sf}, sfList, 
 		Filter Each({sfp}, sf, length(sfp)>0)
 	);
-	show(sfListFiltered);
 	sfListFiltered = Filter each({sfp}, sfListFiltered, n items(sfp)>0);
-	show(sfListFiltered);
-	//sfListPartstoJoin = Transform Each({sf}, sfListFiltered, "{" || concat items(sf, "}AND{") || "}";);
 	sfListPartstoJoin = Transform Each({sf}, sfListFiltered, "" || concat items(sf, " AND ") || "";);
-	//sfListPartstoJoin = Transform Each({sf}, sfListFiltered, concat items(sf, ")&("););
-	show(sfListPartstoJoin);
 	
 	searchQuery = "(" || concat items(sfListPartstoJoin, ") OR (") || ")";
-	show(searchQuery);
-	write(searchQuery);
-
 	params = associativeArray();
 	params["dataServerWebId"] = dataServerID;
 	params["query"] = searchQuery;

@@ -25,15 +25,15 @@ ut test( "addinToolstest", "assignparsename", Expr(
     );
 
     ut assert that(
-        Expr( ns:assignparsename( left, ) ),
-        ut throws( ut anything() ),
-        "Function should error when left argument missing"
+        Expr( ns:assignparsename( "left" ) ),
+        ut throws( ut as lowercase( ut all of( {ut contains( "right" ), ut contains( "missing") } ) ) ),
+        "Function should error when right argument missing"
     );
 
     ut assert that(
-        Expr( ns:assignparsename( , right ) ),
-        ut throws( ut anything() ),
-        "Function should error when right argument missing"
+        Expr( ns:assignparsename( , "right" ) ),
+        ut throws( ut as lowercase( ut all of( {ut contains( "left" ), ut contains( "missing") } ) ) ),
+        "Function should error when left argument missing"
     );
 ));
 
@@ -289,8 +289,20 @@ ut test( "addinToolstest", "ziplists", Expr(
 ut test( "addinToolsTest", "padnum", Expr(
 
     ut assert that(
+		expr( ns:padnum( 0, 1 ) ),
+		ut equal to( "0" ),
+		"Pads zero with leading zero"
+    );
+
+    ut assert that(
 		expr( ns:padnum( 0 ) ),
 		ut equal to( "00" ),
+		"Pads zero with leading zero"
+    );
+
+    ut assert that(
+		expr( ns:padnum( 0, 3 ) ),
+		ut equal to( "000" ),
 		"Pads zero with leading zero"
     );
 
@@ -298,6 +310,12 @@ ut test( "addinToolsTest", "padnum", Expr(
         expr( ns:padnum( 3 ) ),
         ut equal to( "03" ),
         "Pads single-digit numbers with leading zero"
+    );
+
+    ut assert that(
+        expr( ns:padnum( -3 ) ),
+        ut equal to( "-03" ),
+        "Pads negative numbers"
     );
 
     ut assert that(
@@ -316,6 +334,12 @@ ut test( "addinToolsTest", "padnum", Expr(
         expr( ns:padnum( 142 ) ),
         ut equal to( "142" ),
         "Leaves larger numbers unchanged"
+    );
+
+    ut assert that(
+        expr( ns:padnum( 142, 15 ) ),
+        ut equal to( "000000000000142" ),
+        "Pads wide numebrs"
     );
 
     ut assert that(

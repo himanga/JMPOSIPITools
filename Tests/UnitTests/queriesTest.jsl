@@ -4,31 +4,31 @@
 ut test( "queries", "UrlEncode", Expr(
 
     //
-    // Correct encoding tests
+    // Basic correctness
     //
 
     ut assert value(
         ns:UrlEncode( "hello world" ),
         ut equal to( "hello%20world" ),
-        "Encodes spaces as %20"
+        "Encodes space as %20"
     );
 
     ut assert value(
         ns:UrlEncode( "100%" ),
         ut equal to( "100%25" ),
-        "Encodes % as %25"
+        "Encodes percent sign"
     );
 
     ut assert value(
         ns:UrlEncode( "a+b" ),
         ut equal to( "a%2Bb" ),
-        "Encodes + as %2B"
+        "Encodes plus sign"
     );
 
     ut assert value(
         ns:UrlEncode( "A&B" ),
         ut equal to( "A%26B" ),
-        "Encodes &amp; as %26"
+        "Encodes ampersand"
     );
 
     ut assert value(
@@ -39,37 +39,234 @@ ut test( "queries", "UrlEncode", Expr(
 
 
     //
-    // Error handling tests (arguments missing)
+    // Ordering / interaction
+    //
+
+    ut assert value(
+        ns:UrlEncode( "% +" ),
+        ut equal to( "%25%20%2B" ),
+        "Encodes % before other characters"
+    );
+
+
+    //
+    // Identity cases
+    //
+
+    ut assert value(
+        ns:UrlEncode( "abcXYZ123" ),
+        ut equal to( "abcXYZ123" ),
+        "Leaves unreserved characters unchanged"
+    );
+
+
+    //
+    // Error handling
     //
 
     ut assert that(
         Expr( ns:UrlEncode() ),
         ut throws( ut anything() ),
-        "Should throw error when argument is completely missing"
-    );
-
-    ut assert that(
-        Expr( ns:UrlEncode( ) ),
-        ut throws( ut anything() ),
-        "Should error when {str} argument is not provided"
+        "Throws when argument is missing"
     );
 
     ut assert that(
         Expr( ns:UrlEncode( {} ) ),
         ut throws( ut anything() ),
-        "Should error when argument is not a string"
+        "Throws when argument is not a string"
+    );
+
+    ut assert that(
+        Expr( ns:UrlEncode( 5 ) ),
+        ut throws( ut anything() ),
+        "Throws when argument is numeric"
     );
 
 ));
 
+
+ut test( "queries", "ComputeLocalTimeZoneDifference", Expr(
+
+    ut assert value(
+        ns:ComputeLocalTimeZoneDifference( Today() ),
+        ut typed as ( "Number" ),
+        "Returns a numeric duration"
+    );
+
+    ut assert value(
+        ns:ComputeLocalTimeZoneDifference( Today() + InHours(3.2) ),
+        ut equal to( -InHours(3) ),
+        "Rounds to nearest whole hour difference"
+    );
+
+    ut assert value(
+        ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.6) ),
+        ut equal to( -InHours(3) ),
+        "Rounds .5 hours upward"
+    );
+
+    ut assert value(
+        ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.49) ),
+        ut equal to( -InHours(2) ),
+        "Rounds below .5 hours downward"
+    );
+
+));
+
+ut test( "queries", "FetchUtcHeader", Expr(
+
+	ut assert that(
+		Expr( ns:FetchUtcHeader() ),
+		ut typed as( "Date" ),
+		"returns a date"
+	);
+
+    ut assert that(
+        Expr(
+			ns:FetchUtcHeader() - in hours(1)
+		),
+        ut typed as( "Number" ),
+        "Can do calcs with this date"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader() <= Today() + InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the future"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader() >= Today() - InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the past"
+    );
+
+));
+
+ut test( "queries", "GetLocalTimeZoneDifferencenew", Expr(
+
+    //
+    // Clear cache first
+    //
+    If(
+        Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
+        ns << Remove( "timeDifference" )
+    );
+
+    ut assert that(
+        Expr( ns:GetLocalTimeZoneDifference() ),
+        ut typed as( "Number" ),
+        "Returns numeric timezone offset"
+    );
+
+    first = ns:GetLocalTimeZoneDifference();
+    second = ns:GetLocalTimeZoneDifference();
+
+    ut assert value(
+        first,
+        ut equal to( second ),
+        "Returns cached value on subsequent calls"
+    );
+
+    ut assert that(
+        Expr( ns:timeDifference ),
+        ut not( ut throws( ut anything() ) ),
+        "Caching stores value in namespace"
+    );
+
+));
+
+ut test( "queries", "PiTimeToTimestamp", Expr(
+
+    ut assert that(
+        Expr( ns:PiTimeToTimestamp() ),
+        ut throws( ut anything() ),
+        "Missing argument throws"
+    );
+
+    ut assert that(
+        Expr( ns:PiTimeToTimestamp( "*" ) ),
+        ut throws( ut anything() ),
+        "Non-list input throws"
+    );
+
+    ut assert that(
+        Expr( Type( ns:PiTimeToTimestamp( {"*"} ) ) ),
+        ut equal to( "List" ),
+        "Returns a list when given a list"
+    );
+
+    ut assert that(
+        Expr( Eval( Eval Expr( Type( Expr(ns:PiTimeToTimestamp( {"*"}, 1 ))[1] ) ) ) ),
+        ut any of( { ut equal to( "Number" ), ut equal to( "Integer" ) } ),
+        "Parsed timestamps return numeric JMP dates"
+    );
+));
+
+
+ut test( "queries", "PiDurationToSeconds", Expr(
+
+    ut assert that(
+        Expr( ns:PiDurationToSeconds() ),
+        ut throws( ut anything() ),
+        "Missing argument throws"
+    );
+
+    ut assert that(
+        Expr( ns:PiDurationToSeconds( "1h" ) ),
+        ut throws( ut anything() ),
+        "Non-list input throws"
+    );
+
+    ut assert that(
+        Expr( Type( ns:PiDurationToSeconds( {"1h"} ) ) ),
+        ut equal to( "List" ),
+        "Returns list"
+    );
+
+    ut assert that(
+        Expr( N Items( ns:PiDurationToSeconds( {"1h", "30m"} ) ) ),
+        ut equal to( 2 ),
+        "Preserves input cardinality"
+    );
+
+    ut assert that(
+        Expr(
+            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( {"1h"} ))[1] ) )
+        ),
+        ut all of( { ut greater than( 3500 ), ut less than( 3700 ) } ),
+        "One hour approximates 3600 seconds"
+    );
+
+    ut assert that(
+        Expr(
+            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( {"1h-30m"} ))[1] ) )
+        ),
+        ut all of( { ut greater than( 1700 ), ut less than( 1900 ) } ),
+        "One hour approximates 3600 seconds"
+    );
+));
+
+
 ut test( "queries", "ParseDateString", Expr(
 
+
+    ut assert that(
+        Expr( ns:ParseDateString( "2024-01-02T12:34:56Z" ) ),
+        ut equal to(
+            ParseDate( "2024-01-02T12:34:56" )
+            + ns:GetLocalTimeZoneDifference()
+        ),
+        "Z timestamps converted from UTC to local time"
+    );
+    
     ut assert value(
         ns:ParseDateString( "2024-01-02T12:34:56" ),
         ut equal to( ParseDate("2024-01-02T12:34:56") ),
         "Non‑Z timestamps should be parsed directly"
     );
 
+	if( Length(loc( ns << get keys,  "baseURL" )) < 1, ns:baseURL = ns:UserPref["Base_Url"] );
 	expectedLocal = ParseDate( "2024-01-02T12:34:56" ) + ns:GetLocalTimeZoneDifference();
 
     ut assert value(
@@ -96,9 +293,56 @@ ut test( "queries", "ParseDateString", Expr(
         "Function should error when argument is not a string"
     );
 
+    ut assert that(
+        Expr( ns:ParseDateString( "" ) ),
+        ut throws( ut anything() ),
+        "Empty string throws"
+    );
 ));
 
-ut test( "Main", "GreatestCommonDivisor", Expr(
+
+// =======================================================
+// Tests: ToDateString()
+// =======================================================
+ut test( "queries", "ToDateString", Expr(
+
+    ut assert that(
+        Expr( Ends With( ns:ToDateString( Today() ), "Z" ) ),
+        ut equal to( 1 ),
+        "Appends Z suffix for UTC"
+    );
+
+    ut assert that(
+        Expr( Length( ns:ToDateString( Today() ) ) ),
+        ut equal to( 20 ),
+        "Returns ISO-8601 length string"
+    );
+
+    ut assert that(
+        Expr(
+            ns:ToDateString(
+                Date DMY( 1, 1, 2020 ) + in hours(12)
+            )
+        ),
+        ut equal to( "2020-01-01T17:00:00Z" ),
+        "Formats date portion correctly"
+    );
+
+    ut assert that(
+        Expr( ns:ToDateString() ),
+        ut throws( ut anything() ),
+        "Throws when argument is missing"
+    );
+
+    ut assert that(
+        Expr( ns:ToDateString( "2020-01-01" ) ),
+        ut throws( ut anything() ),
+        "Throws on non-numeric input"
+    );
+));
+
+
+ut test( "queries", "GreatestCommonDivisor", Expr(
 
     //
     // Correct computation tests

@@ -32,7 +32,9 @@ If(
 	Note:
 		
 */
-ns:assignparsename = function({left, right}, 
+ns:assignparsename = function({left = ., right = "somethingnobodyshouldEVERpickIhope" }, 
+	if((type(left) == "Empty") | (type(left) == "Number"), Throw("Left argument is missing"));
+	if(type(right) == "String", if(right == "somethingnobodyshouldEVERpickIhope", Throw("Right argument is missing")));
 	Eval(Substitute(
 		Eval List( {as name( name expr( left ) ), right} ),
 		Expr({}),
@@ -200,29 +202,49 @@ ns:ziplists = function( {data, returntype="Associative Arrays"},
 /*
     Function: padnum
         ---Prototype---
-        ns:padnum( Number )
-        ---------------
-        Formats a number as two characters by prefixing a zero
-        for single-digit values.
+        ns:padnum( Number x, Number width = 2 )
+        -----------------
+        Formats a number as a zero-padded string with a minimum width.
 
-    Arguments:
-        x - A numeric value to be converted to text.
+    Parameters:
+    - x - A numeric value to be formatted. The value is truncated to
+          an integer using Floor().
+    - width - Minimum number of digits to display (default is 2).
 
     Returns:
-        A string representation of the number. If the number is
-        less than 10, it is prefixed with a leading zero.
+        A string representation of the number padded with leading
+        zeros if necessary. The sign of the number is preserved.
 
-    Example:
+    Examples:
         > ns:padnum(3)
         > "03"
+
+        > ns:padnum(7, 3)
+        > "007"
 
         > ns:padnum(12)
         > "12"
 
-    Note:
-        This function always returns text, even when the input
-        is already two digits or greater.
+        > ns:padnum(-4)
+        > "-04"
+
+    Notes:
+        - Non-numeric inputs will throw an error.
+        - Values are always returned as text.
 */
-ns:padnum = function( {x},
-    if( x < 10, "0", "" ) || char(x);
+ns:padnum = function({n, width = 2},
+    {sign, s},
+    
+    if( !((Type(n) == "Number") | (Type(n) == "Integer")),
+        Throw("padnum requires a numeric argument")
+    );
+
+    s = Char( Abs(n) );
+    if(n < 0, sign = "-", sign = "" );
+
+    While( Length(s) < width,
+        s = "0" || s
+    );
+
+    sign || s
 );
