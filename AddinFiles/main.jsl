@@ -388,6 +388,14 @@ BuildJMPJSL = function( {live=0}, {txt},
 		 "\!N\!N**************************************\!N");
 	));
 
+	// Clear cached time zone difference in case this server is different than the last one that ran
+	InsertInto(NewTblExpr,
+		If(
+			Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
+			ns << Remove( "timeDifference" )
+		);
+	);
+
 	// Get pointIDs
 	InsertInto(NewTblExpr,
 		evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
