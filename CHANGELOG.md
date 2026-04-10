@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [HEAD]
+## [0.1303]
 
 ### Added
 - Script to check all user connections (search for CheckConnectionsinUserPref in help)
