@@ -1,0 +1,119 @@
+﻿/* Base font */
+body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 16px;
+    line-height: 1.45;
+    color: #111827;
+}
+
+/* ------------------ */
+/* Headings (reset)   */
+/* ------------------ */
+
+h1 {
+    font-size: 1.4rem;
+    color: #1f3a5f;
+    font-weight: 700;
+    margin-top: 0.6em;
+    margin-bottom: 0.05em;
+    margin-left: 0;
+    letter-spacing: 0.05em;
+}
+
+h2 {
+    font-size: 1.2rem;
+    color: #8b2c2c;
+    font-weight: 600;
+    margin-top: 0.6em;
+    margin-bottom: 0.05em;
+    margin-left: 0.75rem;
+    letter-spacing: 0.05em;
+}
+
+h3 {
+    font-size: 1.0rem;
+    color: #4b5563;
+    font-weight: 600;
+    margin-top: 0.4em;
+    margin-bottom: 0.05em;
+    margin-left: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* ------------------ */
+/* Paragraphs         */
+/* ------------------ */
+
+p {
+    margin-top: 0.15em;
+    margin-bottom: 0.25em;
+}
+
+/* More breathing room between paragraphs */
+p + p {
+    margin-top: 0.4em;
+}
+
+/* Tighten spacing immediately after headings */
+h2 + ul,
+h2 + ol,
+h3 + ul,
+h3 + ol,
+h3 + p {
+    margin-top: 0.05em;
+}
+
+/* ------------------ */
+/* Lists              */
+/* ------------------ */
+
+ul,
+ol {
+    margin-top: 0.15em;
+    margin-bottom: 0.3em;
+    padding-left: 1.2em;
+}
+
+li {
+    margin-bottom: 0.12em;
+}
+
+li:last-child {
+    margin-bottom: 0;
+}
+
+
+/* ------------------ */
+/* Indentation logic  */
+/* ------------------ */
+
+/* Paragraph-like content under h2 */
+h2 ~ p,
+h2 ~ blockquote,
+h2 ~ pre,
+h2 ~ table {
+    margin-left: 0.75rem;
+}
+
+/* Lists under h2 */
+h2 ~ ul,
+h2 ~ ol {
+    margin-left: 0.75rem;
+    padding-left: 1.5rem; /* moves bullets correctly */
+}
+
+/* Paragraph-like content under h3 */
+h3 ~ p,
+h3 ~ blockquote,
+h3 ~ pre,
+h3 ~ table {
+    margin-left: 1.5rem;
+}
+
+/* Lists under h3 */
+h3 ~ ul,
+h3 ~ ol {
+    margin-left: 1.5rem;
+    padding-left: 1.5rem;
+}

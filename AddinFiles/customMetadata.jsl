@@ -7,7 +7,7 @@ Associative Array(
 		List( "developer", "Isaac Himanga" ),
 		List( "developeremail", "message me on the JMP community or github" ),
 		List( "id", "com.github.himanga.JMPOSIPITools" ),
-		List( "name", "JMP OSI PI Tools" ),
+		List( "name", "Aveva/OSISoft PI Tools" ),
 		List( "state", "DEV" )
 	)
 )

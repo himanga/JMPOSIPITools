@@ -15,7 +15,7 @@ You should have received a copy of the GNU General Public License along with the
 
 #Config
 #  Set output file name
-$FilePathPrefix = "JMPOSIPITools"
+$FilePathPrefix = "JMPAvevaOSIPITools"
 
 #NaturalDocs
 & "C:\Program Files (x86)\Natural Docs\NaturalDocs.exe" "NaturalDocs"
@@ -39,10 +39,22 @@ $customMetadataPath = $TempPath+"customMetadata.jsl"
   Out-File $customMetadataPath
 $content = Get-Content -path $customMetadataPath
 
-#Copy changelog into add-in directory
-Copy-Item -Path "CHANGELOG.md" -Destination $TempPath"CHANGELOG.txt"
-Copy-Item -Path "README.md" -Destination $TempPath"README.txt"
+#Copy License into add-in directory
 Copy-Item -Path "LICENSE" -Destination $TempPath"LICENSE.txt"
+
+# Render markdown and changelog into add-in directory
+#Install and improt module
+$moduleName = "MarkdownToHtml"
+if (-not (Get-Module -ListAvailable -Name $moduleName)) {
+    Install-Module -Name $moduleName -Scope CurrentUser -Force
+}
+Import-Module MarkdownToHtml
+
+New-HTMLTemplate -Destination $TempPath
+
+# Convert a Markdown file to HTML
+Convert-MarkdownToHtml -Path "README.md" -Template "MarkdownTemplate/" -SiteDirectory $TempPath
+Convert-MarkdownToHtml -Path "CHANGELOG.md" -Template "MarkdownTemplate/" -SiteDirectory $TempPath
 
 #Make add-in file
 $ZipFileName = $FilePathPrefix+".zip"

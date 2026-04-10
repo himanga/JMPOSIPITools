@@ -1,6 +1,5 @@
 # Changelog
-
-All notable changes to this project will be documented in this file.
+Notable changes to this project are documented here.
 
 ## [HEAD]
 
@@ -11,7 +10,7 @@ All notable changes to this project will be documented in this file.
 - 
 
 ### Fixed
-- 
+- Render README and CHANGELOG during build for cleaner view in the add-in
 
 ## [0.1303]
 

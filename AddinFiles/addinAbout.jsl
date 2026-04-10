@@ -46,7 +46,7 @@ Eval( Eval Expr( aboutwin = new window( "About",
 			<< Style(Underline)
 		),
 		bb = Button Box( "View the Readme",
-			Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "README.txt" ), JMP window ),
+			Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "README.html" ), JMP window ),
 			<< Style(Underline)
 		),
 		spacer box( size( 10, 10 ) ),
@@ -67,7 +67,7 @@ Eval( Eval Expr( aboutwin = new window( "About",
 				text box( "Current version: " || char( ns:metadata_aa["addinVersion"] ) || " (" || ns:metadata_aa["state"] || ")" )
 			),
 			bb = Button Box( "Change Log",
-				Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "CHANGELOG.txt" ), JMP window ),
+				Web( Expr( "file://" || Convert File Path( ns:addinhome ) || "CHANGELOG.html" ), JMP window ),
 				<< Style(Underline)
 			),
 		),
