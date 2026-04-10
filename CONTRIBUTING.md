@@ -29,10 +29,9 @@ To release a new version:
 - Run the build script - ensure all unit tests pass
 - Test all functionality of the add-in - user interfance elements are not tested in unit tests
 - Ensure Help documentation is updated
-- Create a commmit on the master branch with a message similar to 'Version x.xx' or 'Version x.xxxx Test'
+- Edit files preparing for version but do not commit yet
     - In AddinFiles/customMetadata.jsl, update:
         - addinVersion (if a major update, can leave it for testing)
-        - buildDate (copy this from the output of the build script temp add-in files)
         - state (to PROD or TEST)
     - In AddinFiles/addin.def, update:
         - addinVersion (match the one in customMetadata.jsl)
@@ -40,6 +39,8 @@ To release a new version:
     - In CHANGELOG.md: 
         - Change HEAD to match the version number
 - Rebuild the add-in, rename the .jmpaddin file to be simila to 'JMPOSIPITools_x.xx' and save this copy so you can upload it to GitHub and the JMP Community for production releases
+- In AddinFiles/custom Metadata.jsl, update the buildDate (copy this from the output of the build script temp add-in files)
+- Create a commmit on the master branch with a message similar to 'Version x.xx' or 'Version x.xxxx Test'
 - If a production release - create a new tag in the format 'vx.xx' with a message similar to 'Version x.xx'
 - Create a release in github from that tag, copy the changelog section into the release details
 - Upload the .jmpaddin file to thhe assets for that release
