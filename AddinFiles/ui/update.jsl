@@ -1,6 +1,6 @@
 // Set textbox with JSL
 UpdateOutput = function( {},
-	
+
 	if( DisableUpdate == 1, return());
 	
 	three_rb = rb_tblformat << Get selected;
@@ -111,7 +111,7 @@ UpdateOutput = function( {},
 		)
 	) );
 	
-
+	
 	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
 	// JMP Script
 	JMPJSLout << set text( Char(BuildJMPJSL()));

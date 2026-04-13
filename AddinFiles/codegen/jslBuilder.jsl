@@ -14,6 +14,8 @@ BuildJMPJSL = function( {live=0}, {txt},
 	intervalTime = TimeInterval << GetText;
 	tableName = tb_tablename << GetText;
 	hideprefix = cb_hideprefix << Get;
+	baseURL = tb_BaseURL << GetText;
+	maxRows = num( tb_maxrows << GetText );
 	If(SeparateInterval << Get(1) == 0,
 		// Use the interval as the time step if there is no separate interval
 		stepTime = intervalTime
@@ -81,7 +83,6 @@ BuildJMPJSL = function( {live=0}, {txt},
 		InsertInto(NewTblExpr, EvalExpr(
 			thisAddIn = "com.github.himanga.addinnamespaceLive";
 			ns = expr( name expr( nsLiveExpr ) );
-			ns:live=1;
 		)),
 		InsertInto(NewTblExpr, EvalExpr(
 			// Requires a reference to the addin's namespace
@@ -90,65 +91,66 @@ BuildJMPJSL = function( {live=0}, {txt},
 				ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
 				ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 			);
-			ns:live=0;
 		))
 	);
 
 	InsertInto(NewTblExpr, EvalExpr(
-		// Base URL to be used by all requests
-		ns:baseURL = expr(tb_BaseURL << getText);
-		// Max number if items returned used by all requests
-		ns:maxRows = expr(num(tb_maxrows << getText));
-
-		// Use the minumum of the user specified maxRows and the API Row limit as the number of rows to pull in a single request
-		ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
-		// Gets the data server's web ID based on the user's preferences
-		serverid = ns:DataServerIdRequest(expr(serverName));
+		conn = ns:MakeConnection(
+			expr(baseURL),
+			expr(serverName),
+			expr(live),
+			expr(maxRows)
+		);
 		Note to Users = Expr("\!N**************************************\!N\!N" ||
 		 "End of the generic function definition.\!N\!N" ||
 		 "Start of script to pull this specific data." ||
 		 "\!N\!N**************************************\!N");
 	));
 
-	// Clear cached time zone difference in case this server is different than the last one that ran
+	// Emit serverid lookup into the generated script
 	InsertInto(NewTblExpr,
-		If(
-			Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
-			ns << Remove( "timeDifference" )
-		);
+		EvalExpr( serverid = ns:DataServerIdRequest(conn) )
 	);
+
+	// Clear cached time zone difference in case this server is different than the last one that ran
+	InsertInto(NewTblExpr, Expr(
+		If(
+			Contains( conn, "timeDifference" ),
+			Remove From( conn, Loc(conn << Get Keys, "timeDifference") )
+		);
+	) );
 
 	// Get pointIDs
 	InsertInto(NewTblExpr,
-		evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
+		evalExpr({pointIDs, pointNames} = ns:PointRequest(conn, serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
 	);
 
 	// Call a Table function depending on the query type
 	tableRequestExpr = Match(querytype,
 		"Point Info",
-			Expr(dtLong = ns:GetPointAttributesTable(pointIDs)),
+			EvalExpr(dtLong = ns:GetPointAttributesTable(conn, pointIDs)),
 		"Snapshot Values",
-			Expr(dtLong = ns:GetSnapshotValuesTable(pointIDs)),
+			EvalExpr(dtLong = ns:GetSnapshotValuesTable(conn, pointIDs)),
 		"All Archived Values",
-			EvalExpr(dtLong = ns:GetArchiveValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime))),
+			EvalExpr(dtLong = ns:GetArchiveValuesTable(conn, pointIDs, pointNames, Expr(startTime), Expr(endTime))),
 		"Interpolated Values",
-			EvalExpr(dtLong = ns:GetInterpolatedValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime), Expr(intervalTime))),
+			EvalExpr(dtLong = ns:GetInterpolatedValuesTable(conn, pointIDs, pointNames, Expr(startTime), Expr(endTime), Expr(intervalTime))),
 		"Average",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Average", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Average", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Count",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Count", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Count", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Max",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Maximum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Maximum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Min",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Minimum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Minimum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Population Standard Deviation",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "PopulationStdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "PopulationStdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Range",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Range", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Range", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Standard Deviation",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "StdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "StdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		"Totals",
-			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Total", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(conn, pointIDs, pointNames, "Total", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
 		throw("Unknown query type")
 	);
 	InsertInto(NewTblExpr, NameExpr(tableRequestExpr));
@@ -163,10 +165,10 @@ BuildJMPJSL = function( {live=0}, {txt},
 		,
 			rowCount = nRows(dtLong)
 		);
-		if(rowCount >= ns:maxRows,
+		if(rowCount >= conn["maxRows"],
 			NewWindow("Max Rows Exceeded", <<modal,
 				TextBox(
-					"Met or exceeded the maximum number of rows (" || char(ns:maxRows) ||
+					"Met or exceeded the maximum number of rows (" || char(conn["maxRows"]) ||
 					") for this query. Increase the allowed maxrows or restrict the query. "||
 					" Some results might be missing."
 				)

@@ -83,69 +83,77 @@ ut test( "timeUtils", "UrlEncode", Expr(
 
 ));
 
-ut test( "timeUtils", "ParseDateString", Expr(
 
-	if( Length(loc( ns << get keys,  "baseURL" )) < 1, ns:baseURL = ns:UserPref["Base_Url"] );
-	expectedLocal = ParseDate( "2024-01-02T12:34:56" ) + ns:GetLocalTimeZoneDifference();
+// Network-dependent tests - conn built once in setup
+timeUtilsTestCase = ut test case( "timeUtils" )
+    << Setup( Expr(
+        conn = ns:MakeConnection(
+            ns:UserPref["Base_Url"],
+            ns:UserPref["PI_Server"],
+            0,
+            num( ns:UserPref["Max_Rows"] )
+        );
+    ));
+
+ut test( timeUtilsTestCase, "ParseDateString", Expr(
+
+    expectedLocal = ParseDate( "2024-01-02T12:34:56" ) + ns:GetLocalTimeZoneDifference( conn );
 
     ut assert value(
-        ns:ParseDateString( "2024-01-02T12:34:56Z" ),
+        ns:ParseDateString( conn, "2024-01-02T12:34:56Z" ),
         ut equal to( expectedLocal ),
-        "Z‑suffix timestamps should convert from UTC to local time"
+        "Z-suffix timestamps should convert from UTC to local time"
+    );
+
+    ut assert value(
+        ns:ParseDateString( conn, "2024-01-02T12:34:56" ),
+        ut equal to( ParseDate( "2024-01-02T12:34:56" ) ),
+        "Non-Z timestamps should be parsed directly"
     );
 
     ut assert that(
-        Expr( ns:ParseDateString() ),
+        Expr( ns:ParseDateString( conn ) ),
         ut throws( ut anything() ),
         "Function should error when argument missing"
     );
 
-	ut assert that(
-        Expr( ns:ParseDateString( ) ),
-        ut throws( ut anything() ),
-        "Function should error when argument is empty"
-    );
-
     ut assert that(
-        Expr( ns:ParseDateString( 1234 ) ),
+        Expr( ns:ParseDateString( conn, 1234 ) ),
         ut throws( ut anything() ),
         "Function should error when argument is not a string"
     );
 
     ut assert that(
-        Expr( ns:ParseDateString( "" ) ),
+        Expr( ns:ParseDateString( conn, "" ) ),
         ut throws( ut anything() ),
         "Empty string throws"
     );
+
 ));
 
-
-// =======================================================
-// Tests: ToDateString()
-// =======================================================
-ut test( "timeUtils", "ToDateString", Expr(
+ut test( timeUtilsTestCase, "ToDateString", Expr(
 
     ut assert that(
-        Expr( Ends With( ns:ToDateString( Today() ), "Z" ) ),
+        Expr( Ends With( ns:ToDateString( conn, Today() ), "Z" ) ),
         ut equal to( 1 ),
         "Appends Z suffix for UTC"
     );
 
     ut assert that(
-        Expr( Length( ns:ToDateString( Today() ) ) ),
+        Expr( Length( ns:ToDateString( conn, Today() ) ) ),
         ut equal to( 20 ),
         "Returns ISO-8601 length string"
     );
 
     ut assert that(
         Expr(
-            ns:ToDateString(
+            ns:ToDateString( conn,
                 Date DMY( 1, 1, 2020 ) + in hours(12)
             )
         ),
         ut equal to(
             Format Date(
-                Date DMY( 1, 1, 2020 ) + in hours(12) - ns:GetLocalTimeZoneDifference(),
+                Date DMY( 1, 1, 2020 ) + in hours(12) - ns:GetLocalTimeZoneDifference( conn ),
                 "yyyy-mm-ddThh:mm:ss"
             ) || "Z"
         ),
@@ -153,36 +161,35 @@ ut test( "timeUtils", "ToDateString", Expr(
     );
 
     ut assert that(
-        Expr( ns:ToDateString() ),
+        Expr( ns:ToDateString( conn ) ),
         ut throws( ut anything() ),
         "Throws when argument is missing"
     );
 
     ut assert that(
-        Expr( ns:ToDateString( "2020-01-01" ) ),
+        Expr( ns:ToDateString( conn, "2020-01-01" ) ),
         ut throws( ut anything() ),
         "Throws on non-numeric input"
     );
+
 ));
 
-ut test( "timeUtils", "GetLocalTimeZoneDifference", Expr(
+ut test( timeUtilsTestCase, "GetLocalTimeZoneDifference", Expr(
 
-    //
-    // Clear cache first
-    //
+    // Clear cache specifically for this test to exercise cold-cache path
     If(
-        Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
-        ns << Remove( "timeDifference" )
+        Contains( conn, "timeDifference" ),
+        Remove From( conn, Loc( conn << Get Keys, "timeDifference" ) )
     );
 
     ut assert that(
-        Expr( ns:GetLocalTimeZoneDifference() ),
+        Expr( ns:GetLocalTimeZoneDifference( conn ) ),
         ut typed as( "Number" ),
         "Returns numeric timezone offset"
     );
 
-    first = ns:GetLocalTimeZoneDifference();
-    second = ns:GetLocalTimeZoneDifference();
+    first  = ns:GetLocalTimeZoneDifference( conn );
+    second = ns:GetLocalTimeZoneDifference( conn );
 
     ut assert value(
         first,
@@ -190,99 +197,93 @@ ut test( "timeUtils", "GetLocalTimeZoneDifference", Expr(
         "Returns cached value on subsequent calls"
     );
 
-    ut assert that(
-        Expr( ns:timeDifference ),
-        ut not( ut throws( ut anything() ) ),
-        "Caching stores value in namespace"
-    );
-
 ));
 
 ut test( "timeUtils", "ComputeLocalTimeZoneDifference", Expr(
 
-    ut assert value(
-        ns:ComputeLocalTimeZoneDifference( Today() ),
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() ) ),
         ut typed as ( "Number" ),
         "Returns a numeric duration"
     );
 
-    ut assert value(
-        ns:ComputeLocalTimeZoneDifference( Today() + InHours(3.2) ),
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(3.2) ) ),
         ut equal to( -InHours(3) ),
         "Rounds to nearest whole hour difference"
     );
 
-    ut assert value(
-        ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.6) ),
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.6) ) ),
         ut equal to( -InHours(3) ),
         "Rounds .5 hours upward"
     );
 
-    ut assert value(
-        ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.49) ),
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.49) ) ),
         ut equal to( -InHours(2) ),
         "Rounds below .5 hours downward"
     );
 
 ));
 
-ut test( "timeUtils", "PiTimeToTimestamp", Expr(
+ut test( timeUtilsTestCase, "PiTimeToTimestamp", Expr(
 
     ut assert that(
-        Expr( ns:PiTimeToTimestamp() ),
+        Expr( ns:PiTimeToTimestamp( conn ) ),
         ut throws( ut anything() ),
-        "Missing argument throws"
+        "Missing piTimes argument throws"
     );
 
     ut assert that(
-        Expr( ns:PiTimeToTimestamp( "*" ) ),
+        Expr( ns:PiTimeToTimestamp( conn, "*" ) ),
         ut throws( ut anything() ),
         "Non-list input throws"
     );
 
     ut assert that(
-        Expr( Type( ns:PiTimeToTimestamp( {"*"} ) ) ),
+        Expr( Type( ns:PiTimeToTimestamp( conn, {"*"} ) ) ),
         ut equal to( "List" ),
         "Returns a list when given a list"
     );
 
     ut assert that(
-        Expr( Eval( Eval Expr( Type( Expr(ns:PiTimeToTimestamp( {"*"}, 1 ))[1] ) ) ) ),
+        Expr( Eval( Eval Expr( Type( Expr(ns:PiTimeToTimestamp( conn, {"*"}, 1 ))[1] ) ) ) ),
         ut any of( { ut equal to( "Number" ), ut equal to( "Integer" ) } ),
         "Parsed timestamps return numeric JMP dates"
     );
+
 ));
 
-
-ut test( "timeUtils", "PiDurationToSeconds", Expr(
+ut test( timeUtilsTestCase, "PiDurationToSeconds", Expr(
 
     ut assert that(
-        Expr( ns:PiDurationToSeconds() ),
+        Expr( ns:PiDurationToSeconds( conn ) ),
         ut throws( ut anything() ),
-        "Missing argument throws"
+        "Missing piDurations argument throws"
     );
 
     ut assert that(
-        Expr( ns:PiDurationToSeconds( "1h" ) ),
+        Expr( ns:PiDurationToSeconds( conn, "1h" ) ),
         ut throws( ut anything() ),
         "Non-list input throws"
     );
 
     ut assert that(
-        Expr( Type( ns:PiDurationToSeconds( {"1h"} ) ) ),
+        Expr( Type( ns:PiDurationToSeconds( conn, {"1h"} ) ) ),
         ut equal to( "List" ),
         "Returns list"
     );
 
     ut assert that(
-        Expr( N Items( ns:PiDurationToSeconds( {"1h", "30m"} ) ) ),
+        Expr( N Items( ns:PiDurationToSeconds( conn, {"1h", "30m"} ) ) ),
         ut equal to( 2 ),
         "Preserves input cardinality"
     );
 
     ut assert that(
         Expr(
-            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( {"1h"} ))[1] ) )
+            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( conn, {"1h"} ))[1] ) )
         ),
         ut all of( { ut greater than( 3500 ), ut less than( 3700 ) } ),
         "One hour approximates 3600 seconds"
@@ -290,9 +291,10 @@ ut test( "timeUtils", "PiDurationToSeconds", Expr(
 
     ut assert that(
         Expr(
-            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( {"1h-30m"} ))[1] ) )
+            Eval( Eval Expr( Expr(ns:PiDurationToSeconds( conn, {"1h-30m"} ))[1] ) )
         ),
         ut all of( { ut greater than( 1700 ), ut less than( 1900 ) } ),
-        "One hour approximates 3600 seconds"
+        "1h-30m approximates 1800 seconds"
     );
+
 ));

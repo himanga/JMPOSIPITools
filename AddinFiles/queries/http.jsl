@@ -1,61 +1,71 @@
+ns:MakeConnection = function( {baseURL, serverName, live, maxRows},
+    {conn},
+    conn = Associative Array();
+    conn["baseURL"]     = baseURL;
+    conn["serverName"]  = serverName;
+    conn["live"]        = live;
+    conn["maxRows"]     = maxRows;
+    conn["maxCount"]    = Minimum( maxRows, ns:APIRowLimit );
+    return( conn )
+);
 // Sends a GET request to the endpoint with the specified parameters
-ns:GetRequest = Function({endpoint, queryParameters},
-	{DEFAULT LOCAL},
-	baseURL = ns:baseURL;
-	if(!EndsWith(baseURL, "/"),
-		baseURL ||= "/"
-	);
-	if(
-		ns:live==1,
-		request = Expr( New HTTP Request(
+ns:GetRequest = Function( {conn, endpoint, queryParameters},
+    {DEFAULT LOCAL},
+    baseURL = conn["baseURL"];
+    if( !EndsWith( baseURL, "/" ),
+        baseURL ||= "/"
+    );
+    if(
+        conn["live"] == 1,
+        request = Expr( New HTTP Request(
 			URL(baseURL || endpoint),
 			Method("GET"),
 			QueryString(queryParameters),
-			Headers( {"Accept: application/json"} ),
+            Headers( {"Accept: application/json"} ),
 			Username("%_UID_%"),
 			Password("%_PWD_%")
-		) );,
-		request = Expr( New HTTP Request(
+        ) );,
+        request = Expr( New HTTP Request(
 			URL(baseURL || endpoint),
 			Method("GET"),
 			QueryString(queryParameters),
-			Headers( {"Accept: application/json"} ),
+            Headers( {"Accept: application/json"} ),
 			Password(":")
-		) );
-	);
-	
+        ) );
+    );
+
 	if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
 		Insert Into(request, Expr(Secure(0)));
-	);
-	request = Eval( request );
+    );
+    request = Eval( request );
 	result = request << send;
 	if(!(request << IsSuccess),
-		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
-		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
-		errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
+        errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
+        errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
+        errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
 		errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
 		Throw(errorMessage);
-	);
+    );
 	return(parseJSON(result));
 );
 
 /*
     Function: FetchUtcHeader
         ---Prototype---
-        ns:FetchUtcHeader( Number islive = 0 )
+        ns:FetchUtcHeader( AssociativeArray conn )
         -----------------
         Sends a lightweight HTTP GET request to the configured base URL
         and extracts the UTC timestamp from the HTTP response headers.
 
     Parameters:
-    - islive - When nonzero, sends credentials with the request.
+    - conn - A connection associative array created by <MakeConnection>.
 
     Returns:
         A numeric JMP date representing the UTC time reported
         by the server Date response header.
 
     Examples:
-        > utc = ns:FetchUtcHeader();
+        > utc = ns:FetchUtcHeader( conn );
         > utc + InHours(1);
 
     Notes:
@@ -63,14 +73,14 @@ ns:GetRequest = Function({endpoint, queryParameters},
         - No caching or timezone adjustment is performed.
         - Errors raised by HTTP Request or Send are propagated.
 */
-ns:FetchUtcHeader = function( {islive = 0},
+ns:FetchUtcHeader = function( {conn},
     {DEFAULT LOCAL},
 
     requestExpr =
-        If( islive,
+        If( conn["live"],
             Expr(
                 New HTTP Request(
-                    URL( ns:baseURL ),
+                    URL( conn["baseURL"] ),
                     Method( "GET" ),
                     Username( "%_UID_%" ),
                     Password( "%_PWD_%" )
@@ -78,7 +88,7 @@ ns:FetchUtcHeader = function( {islive = 0},
             ),
             Expr(
                 New HTTP Request(
-                    URL( ns:baseURL ),
+                    URL( conn["baseURL"] ),
                     Method( "GET" ),
                     Password( ":" )
                 )

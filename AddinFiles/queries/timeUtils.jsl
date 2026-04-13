@@ -59,11 +59,12 @@ ns:UrlEncode = function({str},
 /*
     Function: ParseDateString
         ---Prototype---
-        ns:ParseDateString( String dateString )
+        ns:ParseDateString( AssociativeArray conn, String dateString )
         ----------------
-        Parses an ISO‑8601 date string and returns a local JMP date value.
+        Parses an ISO-8601 date string and returns a local JMP date value.
 
     Parameters:
+    - conn       - A connection associative array created by <MakeConnection>.
     - dateString - A date-time string in the form
                    "yyyy-mm-ddThh:mm:ss" or
                    "yyyy-mm-ddThh:mm:ssZ"
@@ -72,14 +73,14 @@ ns:UrlEncode = function({str},
         A numeric JMP date value in local time.
 
     Examples:
-        > ns:ParseDateString( "2024-01-02T12:34:56" )
-        > ns:ParseDateString( "2024-01-02T12:34:56Z" )
+        > ns:ParseDateString( conn, "2024-01-02T12:34:56" )
+        > ns:ParseDateString( conn, "2024-01-02T12:34:56Z" )
 
     Notes:
         - A trailing "Z" indicates UTC and will be converted to local time.
         - Non-string inputs throw an error.
 */
-ns:ParseDateString = Function( {dateString},
+ns:ParseDateString = Function( {conn, dateString},
     {DEFAULT LOCAL},
 
     If(
@@ -96,7 +97,7 @@ ns:ParseDateString = Function( {dateString},
     parsed = ParseDate( baseString );
 
     If( isUTC,
-        parsed + ns:GetLocalTimeZoneDifference(),
+        parsed + ns:GetLocalTimeZoneDifference( conn ),
         parsed
     )
 );
@@ -104,11 +105,12 @@ ns:ParseDateString = Function( {dateString},
 /*
     Function: ToDateString
         ---Prototype---
-        ns:ToDateString( Numeric date )
+        ns:ToDateString( AssociativeArray conn, Numeric date )
         ----------------
         Converts a JMP date value to a UTC ISO-8601 date-time string.
 
     Parameters:
+    - conn - A connection associative array created by <MakeConnection>.
     - date - A JMP numeric date value (seconds since epoch).
 
     Returns:
@@ -116,7 +118,7 @@ ns:ParseDateString = Function( {dateString},
         "yyyy-mm-ddThh:mm:ssZ"
 
     Examples:
-        > ns:ToDateString( Today() )
+        > ns:ToDateString( conn, Today() )
         > "2026-04-09T13:00:00Z"   // example
 
     Notes:
@@ -124,14 +126,14 @@ ns:ParseDateString = Function( {dateString},
         - Conversion uses <GetLocalTimeZoneDifference>.
         - Always appends "Z" to indicate UTC.
 */
-ns:ToDateString = Function({date},
+ns:ToDateString = Function( {conn, date},
     {utcDate, dateString},
 
     If( !Is Number( date ),
         Throw( "ToDateString requires a numeric JMP date value" )
     );
 
-    utcDate    = date - ns:GetLocalTimeZoneDifference();
+    utcDate    = date - ns:GetLocalTimeZoneDifference( conn );
     dateString = FormatDate( utcDate, "yyyy-mm-ddThh:mm:ss" );
 
     dateString || "Z"
@@ -140,33 +142,36 @@ ns:ToDateString = Function({date},
 /*
     Function: GetLocalTimeZoneDifference
         ---Prototype---
-        ns:GetLocalTimeZoneDifference()
+        ns:GetLocalTimeZoneDifference( AssociativeArray conn )
         -------------------------------
         Returns the local time zone offset from UTC. The value is cached
-        after the first computation.
+        in conn after the first computation.
+
+    Parameters:
+    - conn - A connection associative array created by <MakeConnection>.
 
     Returns:
         A numeric duration representing the local time offset from UTC.
 
     Examples:
-        > offset = ns:GetLocalTimeZoneDifference();
+        > offset = ns:GetLocalTimeZoneDifference( conn );
         > localTime = utcTime + offset;
 
     Notes:
         - Performs network I/O on first call only.
-        - Subsequent calls return a cached value.
-        - Cache is stored in the namespace as `timeDifference`.
+        - Subsequent calls return a value cached in conn["timeDifference"].
+        - Different connections cache their timezone independently.
 */
-ns:GetLocalTimeZoneDifference = function({},
+ns:GetLocalTimeZoneDifference = function( {conn},
     {utc, tz},
 
     If(
-        Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
-            ns:timeDifference,
+        Length( Loc( conn << Get Keys, "timeDifference" ) ) > 0,
+            conn["timeDifference"],
 
-        utc = ns:FetchUtcHeader( ns:live );
+        utc = ns:FetchUtcHeader( conn );
         tz  = ns:ComputeLocalTimeZoneDifference( utc );
-        ns:timeDifference = tz;
+        conn["timeDifference"] = tz;
         tz
     )
 );
@@ -174,7 +179,7 @@ ns:GetLocalTimeZoneDifference = function({},
 /*
     Function: ComputeLocalTimeZoneDifference
         ---Prototype---
-        ns:ComputeLocalTimeZoneDifference( Numeric )
+        ns:ComputeLocalTimeZoneDifference( Numeric utcHeaderDate )
         ---------------
         Computes the local time zone offset from UTC based on a provided
         UTC date value.
@@ -201,12 +206,13 @@ ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
 /*
     Function: PiTimeToTimestamp
         ---Prototype---
-        ns:PiTimeToTimestamp( List piTimes, Boolean parseTimestamp = 0 )
+        ns:PiTimeToTimestamp( AssociativeArray conn, List piTimes, Boolean parseTimestamp )
         -----------------
         Converts a list of PI time expressions into JMP timestamps.
 
     Parameters:
-    - piTimes - A list of PI time expressions (for example "*-1h", "*").
+    - conn           - A connection associative array created by <MakeConnection>.
+    - piTimes        - A list of PI time expressions (for example "*-1h", "*").
     - parseTimestamp - If true, returned timestamps are converted to
                        local JMP date values using <ParseDateString>.
 
@@ -215,17 +221,17 @@ ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
         JMP date values when parseTimestamp is enabled.
 
     Examples:
-        > ns:PiTimeToTimestamp( {"*"} )
+        > ns:PiTimeToTimestamp( conn, {"*"} )
         > {"2024-01-02T12:34:56Z"}
 
-        > ns:PiTimeToTimestamp( {"*"}, 1 )
+        > ns:PiTimeToTimestamp( conn, {"*"}, 1 )
         > { 3908464496 }
 
     Notes:
         - This function performs PI Web API requests.
         - Input list must not be empty.
 */
-ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
+ns:PiTimeToTimestamp = function( {conn, piTimes, parseTimestamp=0},
     { params, fetchTimestamp, timestamps },
 
     If(
@@ -237,10 +243,10 @@ ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
 	params = ["expression" => 1, "selectedFields" => "Items.Timestamp"];
 	timestamps = Transform Each({piTime, i}, piTimes, 
 		params["time"] = piTime;
-		result = ns:GetRequest("calculation/times/", params);
+        result = ns:GetRequest( conn, "calculation/times/", params );
 		ts = result["Items"][1]["Timestamp"];
 		if(parseTimestamp,
-			ts = ns:ParseDateString(ts)
+            ts = ns:ParseDateString( conn, ts )
 		);
 		ts;
 	);
@@ -250,11 +256,12 @@ ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
 /*
     Function: PiDurationToSeconds
         ---Prototype---
-        ns:PiDurationToSeconds( List piDurations )
+        ns:PiDurationToSeconds( AssociativeArray conn, List piDurations )
         -----------------
         Converts PI duration expressions to durations in seconds.
 
     Parameters:
+    - conn        - A connection associative array created by <MakeConnection>.
     - piDurations - A list of PI duration expressions
                     (for example {"1h", "1h-30m"}).
 
@@ -263,17 +270,17 @@ ns:PiTimeToTimestamp = function({piTimes, parseTimestamp=0},
         with the input list.
 
     Examples:
-        > ns:PiDurationToSeconds( {"1h"} )
+        > ns:PiDurationToSeconds( conn, {"1h"} )
         > {3600}
 
-        > ns:PiDurationToSeconds( {"1h-30m"} )
+        > ns:PiDurationToSeconds( conn, {"1h-30m"} )
         > {1800}
 
     Notes:
         - Uses <PiTimeToTimestamp> for PI time resolution.
         - Durations are evaluated relative to a fixed anchor time.
 */
-ns:PiDurationToSeconds = function({piDurations},
+ns:PiDurationToSeconds = function( {conn, piDurations},
 	{DEFAULT LOCAL},
 	piTimes = {};
 	for(i=1, i<=nItems(piDurations), i++,
@@ -281,7 +288,7 @@ ns:PiDurationToSeconds = function({piDurations},
 		insertInto(piTimes, "t+"||piDurations[i]);
 	);
 	insertInto(piTimes, "t");
-	times = ns:PiTimeToTimestamp(piTimes, parseTimestamp=1);
+    times = ns:PiTimeToTimestamp( conn, piTimes, parseTimestamp=1 );
 	t_time = times[NItems(times)];
 	durations = {};
 	for(i=1, i<nItems(times), i++,

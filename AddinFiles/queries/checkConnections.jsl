@@ -73,14 +73,17 @@ ns:CheckConnectionsinUserPref = function({}, {DEFAULT LOCAL},
 	dtConnections << Maximize Window( 1 );
 
 	For(i=1, i <= min(nrow(dtConnections)), i++,
-		ns:baseURL = ns:UserPref["Base_Url"];
-		show(ns:GetLocalTimeZoneDifference, ns:timeDifference);
+		conn = ns:MakeConnection(
+			dtConnections:URL[i],
+			dtConnections:Server[i],
+			ns:live,
+			num(ns:UserPref["Max_Rows"])
+		);
 		try(
-			ns:baseURL = dtConnections:URL[i];
-			dtConnections:TimeServer[i] = ns:FetchUtcHeader();
-			dtConnections:TimeLocal[i] = Today() - ns:timeDifference;
+			dtConnections:TimeServer[i] = ns:FetchUtcHeader(conn);
+			dtConnections:TimeLocal[i] = Today() - ns:GetLocalTimeZoneDifference(conn);
 			try(
-				dtConnections:Server webid[i] = ns:DataServerIdRequest(dtConnections:Server[i]),
+				dtConnections:Server webid[i] = ns:DataServerIdRequest(conn),
 				dtConnections:Error Getting Server[i] = char(exception_msg)
 			)
 		,

@@ -15,8 +15,6 @@ Try(
 	If(Is Empty(ut addin home), ut addin home = Convert File Path("../"));
 	If(Is Empty(ut addin scratch), ut addin scratch = Get Path Variable("TEMP"));
 
-	ns:baseURL = ns:UserPref["Base_Url"];
-
 	ut global reporter = ut collecting reporter();
 	ut include jsl files recursively( "UnitTests" );
 	ReporterOutput = Log Capture(

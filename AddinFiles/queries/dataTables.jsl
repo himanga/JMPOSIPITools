@@ -48,7 +48,7 @@ ns:ExtractStatus = Function({result},
 // with tag, time, value, svalue, and status info for all points in pointIDs
 // Uses adhoc endpoints of streamset to do a single bulk request rather than several individual requests
 // https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/streamset.html
-ns:BuildTableFromPointStreamSets = function({pointIDs, streamEndpoint, parameters, title},
+ns:BuildTableFromPointStreamSets = function({conn, pointIDs, streamEndpoint, parameters, title},
 	{DEFAULT LOCAL},
 	dt = NewTable(title,
 		NewColumn( "tag", Character),
@@ -62,7 +62,7 @@ ns:BuildTableFromPointStreamSets = function({pointIDs, streamEndpoint, parameter
 	endpoint = "streamsets" || streamEndpoint;
 	parameters["webId"] = pointIDs; // Pass in a list to make multiple webId parameters
 	parameters["selectedFields"] = "Items";
-	result = ns:GetRequest(endpoint, parameters);
+	result = ns:GetRequest(conn, endpoint, parameters);
 	points = result["Items"];
 	For(i=1, i<=NItems(points), i++,
 		point = points[i];
@@ -79,7 +79,7 @@ ns:BuildTableFromPointStreamSets = function({pointIDs, streamEndpoint, parameter
 			row = Eval(EvalExpr(
 				{
 					tag = Expr(point["Name"]),
-					time = Expr(ns:ParseDateString(pointResult["Timestamp"])),
+					time = Expr(ns:ParseDateString(conn, pointResult["Timestamp"])),
 					status = Expr(ns:ExtractStatus(pointResult))
 				}
 			));
@@ -97,20 +97,20 @@ ns:BuildTableFromPointStreamSets = function({pointIDs, streamEndpoint, parameter
 
 // Breaks up a range from start to an end time for the given interval into several start and end times
 // to work around the hard API row limit of (endTime-startTime)/interval <= 150000
-ns:GetValidStartAndEndTimes = function({startTime, endTime, interval, endInclusive=1},
+ns:GetValidStartAndEndTimes = function({conn, startTime, endTime, interval, endInclusive=1},
 	{DEFAULT LOCAL},
-	{interval} = ns:PiDurationToSeconds(evalList({interval}));
-	{startTime, endTime} = ns:PiTimeToTimestamp(evalList({startTime, endTime}), 1);
+	{interval} = ns:PiDurationToSeconds(conn, evalList({interval}));
+	{startTime, endTime} = ns:PiTimeToTimestamp(conn, evalList({startTime, endTime}), 1);
 	totalTime = endTime-startTime;
 	newStartTime = startTime;
 	newTimes = {};
 	while(1,
-		newEndTime = newStartTime + (interval * (ns:maxCount - 1 + endInclusive));
-		newTimeRange = evalList({ns:ToDateString(newStartTime), ns:ToDateString(newEndTime)});
+		newEndTime = newStartTime + (interval * (conn["maxCount"] - 1 + endInclusive));
+		newTimeRange = evalList({ns:ToDateString(conn, newStartTime), ns:ToDateString(conn, newEndTime)});
 		insertInto(newTimes, evalList({newTimeRange}));
 		if(newEndTime-startTime >= totalTime,
 			// Make sure the last time is exactly the original endTime
-			newTimes[nItems(newtimes)][2] = ns:ToDateString(endTime);
+			newTimes[nItems(newtimes)][2] = ns:ToDateString(conn, endTime);
 
 			// If the final range's duration is less than the interval, remove it from the list of ranges
 			If(endInclusive & endTime - newStartTime <= interval,
@@ -124,7 +124,7 @@ ns:GetValidStartAndEndTimes = function({startTime, endTime, interval, endInclusi
 );
 
 // Get a table of attributes for each point in pointIDs
-ns:GetPointAttributesTable = function({pointIDs},
+ns:GetPointAttributesTable = function({conn, pointIDs},
 	{DEFAULT LOCAL},
 	dt = NewTable("Point Attributes");
 	colNames = AssociativeArray();
@@ -133,7 +133,7 @@ ns:GetPointAttributesTable = function({pointIDs},
 	params = ["selectedFields" => "Items.Name;Items.Value"];
 	for(i=1, i<=nItems(pointIDs), i++,
 		endpoint = "points/"|| pointIDs[i] || "/attributes";
-		result = ns:GetRequest(endpoint, params);
+		result = ns:GetRequest(conn, endpoint, params);
 		items = result["Items"];
 
 		attributesRow = {};
@@ -144,7 +144,7 @@ ns:GetPointAttributesTable = function({pointIDs},
 			colNames[attributeName] = type(attributeValue);
 			// Convert date attributes to numerical dates
 			if(EndsWith(attributeName, "date"),
-				attributeValue = ns:ParseDateString(attributeValue)
+				attributeValue = ns:ParseDateString(conn, attributeValue)
 			);
 
 			// Add to {col1 = "value1", col2 = "value2"} list that will be the row
@@ -174,30 +174,30 @@ ns:GetPointAttributesTable = function({pointIDs},
 
 // Get a table of snapshot values for each point in pointIDs
 // https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/streamset/actions/getendadhoc.html
-ns:GetSnapshotValuesTable = function({pointIDs},
-	ns:BuildTableFromPointStreamSets(pointIDs, "end", [=>], "Snapshot Values")
+ns:GetSnapshotValuesTable = function({conn, pointIDs},
+	ns:BuildTableFromPointStreamSets(conn, pointIDs, "end", [=>], "Snapshot Values")
 );
 
 
 // Get an list of archive values for the given pointID between start and end times
 // https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getrecorded.html
-ns:GetArchiveValues = function({pointID, startTime, endTime},
+ns:GetArchiveValues = function({conn, pointID, startTime, endTime},
 	{DEFAULT LOCAL},
 	parameters = AssociativeArray();
 	parameters["selectedFields"] = "Items";
-	parameters["maxCount"] = ns:maxCount;
+	parameters["maxCount"] = conn["maxCount"];
 	parameters["startTime"] = startTime;
 	parameters["endTime"] = endTime;
 
 	endpoint = "streams/" || pointID || "/recorded";
 	archiveValues = {};
 	While(1,
-		result = ns:GetRequest(endpoint, parameters);
+		result = ns:GetRequest(conn, endpoint, parameters);
 		items = result["Items"];
 		InsertInto(archiveValues, items);
 
 		// Break if there are fewer points than the maximum allowed by the API or if the user's limit is reached
-		If(nItems(items) < ns:maxCount | nItems(archiveValues) >= ns:maxRows,
+		If(nItems(items) < conn["maxCount"] | nItems(archiveValues) >= conn["maxRows"],
 			Break()
 		);
 		// Otherwise, increase the startTime parameter to be the last end time + 1ms so that the last time is not included again
@@ -208,7 +208,7 @@ ns:GetArchiveValues = function({pointID, startTime, endTime},
 );
 
 // Get a table of archive values for each point in pointIDs between start and end times
-ns:GetArchiveValuesTable = function({pointIDs, pointNames, startTime, endTime},
+ns:GetArchiveValuesTable = function({conn, pointIDs, pointNames, startTime, endTime},
 	{DEFAULT LOCAL},
 	dt = NewTable("Archive Values",
 		NewColumn( "tag", Character),
@@ -220,21 +220,21 @@ ns:GetArchiveValuesTable = function({pointIDs, pointNames, startTime, endTime},
 
 	// Fix start and end times so all requests use the same times where e.g. if the endTime is *
 	if(nItems(pointIDs) > 1,
-		{fixedStartTime, fixedEndTime} = ns:PiTimeToTimestamp(evalList({startTime, endTime}));
+		{fixedStartTime, fixedEndTime} = ns:PiTimeToTimestamp(conn, evalList({startTime, endTime}));
 	,
 		fixedStartTime = startTime;
 		fixedEndTime = endTime;
 	);
 
 	For(i=1, i<=NItems(pointIDs), i++,
-		archiveValues = ns:GetArchiveValues(pointIDs[i], fixedStartTime, fixedEndTime);
+		archiveValues = ns:GetArchiveValues(conn, pointIDs[i], fixedStartTime, fixedEndTime);
 		pointName = pointNames[i];
 		For(j=1, j<=nItems(archiveValues), j++,
 			result = archiveValues[j];
 			row = Eval(EvalExpr(
 				{
 					tag = Expr(pointName),
-					time = Expr(ns:ParseDateString(result["Timestamp"])),
+					time = Expr(ns:ParseDateString(conn, result["Timestamp"])),
 					status = Expr(ns:ExtractStatus(result))
 				}
 			));
@@ -253,7 +253,7 @@ ns:GetArchiveValuesTable = function({pointIDs, pointNames, startTime, endTime},
 // Get a list of interpolated values for the given pointID for all ranges provided
 // Example ranges: {{startdate1, enddate1}, {startdate2, enddate2}}
 // https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getinterpolated.html
-ns:GetInterpolatedValues = function({pointID, ranges, interval},
+ns:GetInterpolatedValues = function({conn, pointID, ranges, interval},
 	{DEFAULT LOCAL},
 	parameters = AssociativeArray();
 	parameters["selectedFields"] = "Items";
@@ -264,12 +264,12 @@ ns:GetInterpolatedValues = function({pointID, ranges, interval},
 	for(i=1, i<=nItems(ranges), i++,
 		parameters["startTime"] = ranges[i][1];
 		parameters["endTime"] = ranges[i][2];
-		result = ns:GetRequest(endpoint, parameters);
+		result = ns:GetRequest(conn, endpoint, parameters);
 		items = result["Items"];
 		InsertInto(interpolatedValues, items);
 
 		// Break if the user's limit is reached
-		If(nItems(interpolatedValues) >= ns:maxRows,
+		If(nItems(interpolatedValues) >= conn["maxRows"],
 			Break()
 		);
 	);
@@ -277,7 +277,7 @@ ns:GetInterpolatedValues = function({pointID, ranges, interval},
 );
 
 // Get a table of interpolated values for each point in pointIDs between start and end times at the specified sampling interval
-ns:GetInterpolatedValuesTable = function({pointIDs, pointNames, startTime, endTime, interval},
+ns:GetInterpolatedValuesTable = function({conn, pointIDs, pointNames, startTime, endTime, interval},
 	{DEFAULT LOCAL},
 	dt = NewTable("Interpolated Values",
 		NewColumn( "tag", Character),
@@ -287,17 +287,17 @@ ns:GetInterpolatedValuesTable = function({pointIDs, pointNames, startTime, endTi
 		NewColumn( "status", Character)
 	);
 
-	ranges = ns:GetValidStartAndEndTimes(startTime, endTime, interval, endInclusive=0);
+	ranges = ns:GetValidStartAndEndTimes(conn, startTime, endTime, interval, endInclusive=0);
 
 	For(i=1, i<=NItems(pointIDs), i++,
-		interpolatedValues = ns:GetInterpolatedValues(pointIDs[i], ranges, interval);
+		interpolatedValues = ns:GetInterpolatedValues(conn, pointIDs[i], ranges, interval);
 		pointName = pointNames[i];
 		For(j=1, j<=nItems(interpolatedValues), j++,
 			result = interpolatedValues[j];
 			row = Eval(EvalExpr(
 				{
 					tag = Expr(pointName),
-					time = Expr(ns:ParseDateString(result["Timestamp"])),
+					time = Expr(ns:ParseDateString(conn, result["Timestamp"])),
 					status = Expr(ns:ExtractStatus(result))
 				}
 			));
@@ -316,7 +316,7 @@ ns:GetInterpolatedValuesTable = function({pointIDs, pointNames, startTime, endTi
 // Get a list of summary values for the given pointID for all ranges provided
 // Example ranges: {{startdate1, enddate1}, {startdate2, enddate2}}
 // https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/stream/actions/getsummary.html
-ns:GetSummaryValues = function({pointID, ranges, interval, summaryType, calculationBasis},
+ns:GetSummaryValues = function({conn, pointID, ranges, interval, summaryType, calculationBasis},
 	{DEFAULT LOCAL},
 	parameters = AssociativeArray();
 	parameters["selectedFields"] = "Items.Value";
@@ -330,12 +330,12 @@ ns:GetSummaryValues = function({pointID, ranges, interval, summaryType, calculat
 	for(i=1, i<=nItems(ranges), i++,
 		parameters["startTime"] = ranges[i][1];
 		parameters["endTime"] = ranges[i][2];
-		result = ns:GetRequest(endpoint, parameters);
+		result = ns:GetRequest(conn, endpoint, parameters);
 		items = result["Items"];
 		InsertInto(summaryValues, items);
 
 		// Break if the user's limit is reached
-		If(nItems(summaryValues) >= ns:maxRows,
+		If(nItems(summaryValues) >= conn["maxRows"],
 			Break()
 		);
 	);
@@ -343,7 +343,7 @@ ns:GetSummaryValues = function({pointID, ranges, interval, summaryType, calculat
 );
 
 // Get a table of summary values for each point in pointIDs
-ns:GetSummaryValuesTable = Function({pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, private=0},
+ns:GetSummaryValuesTable = Function({conn, pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, private=0},
 	{DEFAULT LOCAL},
 	eval(evalExpr(
 		dt = NewTable("Summary Values - " || summaryType,
@@ -354,17 +354,17 @@ ns:GetSummaryValuesTable = Function({pointIDs, pointNames, summaryType, calculat
 		);
 	));
 
-	ranges = ns:GetValidStartAndEndTimes(startTime, endTime, interval, endInclusive=1);
+	ranges = ns:GetValidStartAndEndTimes(conn, startTime, endTime, interval, endInclusive=1);
 
 	For(i=1, i<=NItems(pointIDs), i++,
 		pointName = pointNames[i];
-		pointResults = ns:GetSummaryValues(pointIDs[i], ranges, interval, summaryType, calculationBasis);
+		pointResults = ns:GetSummaryValues(conn, pointIDs[i], ranges, interval, summaryType, calculationBasis);
 		For(j=1, j<=NItems(pointResults), j++,
 			pointResult = pointResults[j];
 			row = Eval(EvalExpr(
 				{
 					tag = Expr(pointName),
-					time = Expr(ns:ParseDateString(pointResult["Value"]["Timestamp"])),
+					time = Expr(ns:ParseDateString(conn, pointResult["Value"]["Timestamp"])),
 					value = Expr(pointResult["Value"]["Value"])
 				}
 			));
@@ -377,19 +377,19 @@ ns:GetSummaryValuesTable = Function({pointIDs, pointNames, summaryType, calculat
 // Get a table of summary values for each point in pointIDs where a stepTime is provided.
 // The rows of the table should be from startTime to endTime with increments of stepTime duration.
 // The summary statistics should be calculated from each of these times (t) from t-interval to t
-ns:GetSummaryValuesTableWithStepTime = Function({pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, stepTime},
+ns:GetSummaryValuesTableWithStepTime = Function({conn, pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval, stepTime},
 	{DEFAULT LOCAL},
 
 	// If the step time and interval are the same, it's as if there is no step time
 	If(interval == stepTime,
-		Return(ns:GetSummaryValuesTable(pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval))
+		Return(ns:GetSummaryValuesTable(conn, pointIDs, pointNames, summaryType, calculationBasis, startTime, endTime, interval))
 	);
 
 	if(calculationBasis != "TimeWeighted", throw("Step time is only supported with the 'TimeWeighted' calculation basis."));
 
 	// Get a table of intended times from startTime to endTime in stepTime increments
-	{intervalSeconds, stepTimeSeconds} = ns:PiDurationToSeconds(evalList({interval, stepTime}));
-	{startTimeSeconds, endTimeSeconds} = ns:PiTimeToTimestamp(evalList({startTime, endTime}), 1);
+	{intervalSeconds, stepTimeSeconds} = ns:PiDurationToSeconds(conn, evalList({interval, stepTime}));
+	{startTimeSeconds, endTimeSeconds} = ns:PiTimeToTimestamp(conn, evalList({startTime, endTime}), 1);
 	dtSummary = AsTable((startTimeSeconds::endTimeSeconds::stepTimeSeconds)`);
 	column(dtSummary, 1) << setName("time") << setDataType(Numeric, Format("m/d/y h:m:s"));
 
@@ -398,9 +398,9 @@ ns:GetSummaryValuesTableWithStepTime = Function({pointIDs, pointNames, summaryTy
 	gcd = ns:GreatestCommonDivisor(intervalSeconds, stepTimeSeconds);
 	nOffsets = intervalSeconds / gcd;
 	for(i=1, i<=nOffsets, i++,
-		offsetStartTime = ns:ToDateString(startTimeSeconds - gcd * i);
+		offsetStartTime = ns:ToDateString(conn, startTimeSeconds - gcd * i);
 		// Get summary values for the offset start time
-		dtTemp = ns:GetSummaryValuesTable(pointIDs, pointNames, "Average", "TimeWeighted", offsetStartTime, endTime, interval, private=1);
+		dtTemp = ns:GetSummaryValuesTable(conn, pointIDs, pointNames, "Average", "TimeWeighted", offsetStartTime, endTime, interval, private=1);
 		// Join the summary values into the table of times
 		dtJoin = dtSummary << Join(
 			With(dtTemp),
