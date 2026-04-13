@@ -1,0 +1,31 @@
+ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+ut test( "httpTest", "FetchUtcHeader", Expr(
+
+	ut assert that(
+		Expr( ns:FetchUtcHeader() ),
+		ut typed as( "Date" ),
+		"returns a date"
+	);
+
+    ut assert that(
+        Expr(
+			ns:FetchUtcHeader() - in hours(1)
+		),
+        ut typed as( "Number" ),
+        "Can do calcs with this date"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader() <= Today() + InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the future"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader() >= Today() - InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the past"
+    );
+
+));

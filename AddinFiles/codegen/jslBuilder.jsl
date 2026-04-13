@@ -1,0 +1,293 @@
+//Create JMP JSL script from options on the form.
+BuildJMPJSL = function( {live=0}, {txt},
+
+	// Get inputs
+	serverName = tb_server << GetText;
+	querytype = cb_querytypes << Get Selected;
+	cnformat = cb_cnformat << Get Selected;
+	matchType = rb_matchtype << Get Selected;
+	TagSearchStrings = (dtPoints:Tag Search << Get Values);
+	DescSearchStrings = (dtPoints:Desc Search << Get Values);
+	calculationBasis = rb_calctype << GetSelected;
+	startTime = TimeStart << GetText;
+	endTime = TimeEnd << GetText;
+	intervalTime = TimeInterval << GetText;
+	tableName = tb_tablename << GetText;
+	hideprefix = cb_hideprefix << Get;
+	If(SeparateInterval << Get(1) == 0,
+		// Use the interval as the time step if there is no separate interval
+		stepTime = intervalTime
+	,
+		stepTime = TimeStep << GetText
+	);
+	TableFormat = rb_tblformat << getSelected;
+	
+	ismissingcn = Transform Each({v, i}, dtPoints:TagSearch << Get Values, Output("Matrix"), is missing(v) );
+	
+	//Set new column names from friendly names depending which the user picked.
+	oldcn = (dtPoints:Tag Search << Get Values)[Loc(!ismissingcn)];
+	friendlycn = (dtPoints:Friendly Name << Get Values)[Loc(!ismissingcn)];
+	friendlycn = Transform Each({thiscn, i}, friendlycn, if(is missing(thiscn), oldcn[i], thiscn));
+	
+	if(
+		cnformat == "friendly",
+		newcn = friendlycn,
+		cnformat == "friendlytag",
+		newcn = Transform Each({thiscn, i}, friendlycn, thiscn || " (" || oldcn[i] || ")"),
+		newcn = oldcn
+	);
+
+	ColToSplit = If( 
+		(querytype == "Interpolated Values" | querytype == "All Archived Values"), 
+		{:value, :svalue, :status},
+		{:value}
+	);
+
+	// Insert all JSL needed to produce the intended table into this expression
+	NewTblExpr = EvalExpr(Glue(
+		NamesDefaultToHere(1);
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+		 if(
+			live==1,
+		 	"This script is intended to work in JMP Live.  It will likely not \!Nwork in the desktop version of JMP or in Citrix because it needs different credentials.\!N\!N",
+			"This script is intended to work in the desktop version of JMP.\!NIt will likely not work in JMP Live because it is missing function\!Ndefinitions and needs different credentials..\!N\!N"
+		 ) ||
+		 "The top part (here through another note similar to this one) of \!Nthe script contains a bunch of generic functions that need\!N" ||
+		 "to be defined once in an update script, the bottom part\!Ncontains the specific call for this data.\!N\!N" ||
+		 "Copy and paste the top part once, and then customize the bottom \!Npart as needed for multiple data pulls, to manipulate data\!N" ||
+		 "and to build reports.\!N\!N" ||
+		 "Start of the generic function definition." ||
+		 "\!N\!N**************************************\!N");
+		 
+		 CreatedWithAddInID = Expr( ns:metadata_aa["id"] );
+		 CreatedWithAddInVersion = Expr( ns:metadata_aa["addinVersion"] );
+		 CreatedWithAddInState = Expr( ns:metadata_aa["state"] );
+		 CreatedWithAddInBuildDate = Expr(  format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
+			ns:padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || ns:padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) );
+	));
+	
+	if(
+		live==1,
+		// Requires a complete copy of the add in namespace
+		
+		nsliveContents = ns << Get Contents;
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
+		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
+		nsLiveContentsList = Transform Each({s, i}, nsliveContents,
+			e = Eval Expr( ( Assign( expr( name expr(s[1]) ), expr( name expr(s[2])) ) ) );
+			name expr(e)
+		);
+		nsLiveExpr = Eval Expr( nsLive = New Namespace("com.github.himanga.JMPOSIPITools.addinnamespaceLive", expr( name expr( nsLiveContentsList ) ) ) );
+		InsertInto(NewTblExpr, EvalExpr(
+			thisAddIn = "com.github.himanga.addinnamespaceLive";
+			ns = expr( name expr( nsLiveExpr ) );
+			ns:live=1;
+		)),
+		InsertInto(NewTblExpr, EvalExpr(
+			// Requires a reference to the addin's namespace
+			thisAddIn = "com.github.himanga.JMPOSIPITools";
+			If(!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+				ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+				ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+			);
+			ns:live=0;
+		))
+	);
+
+	InsertInto(NewTblExpr, EvalExpr(
+		// Base URL to be used by all requests
+		ns:baseURL = expr(tb_BaseURL << getText);
+		// Max number if items returned used by all requests
+		ns:maxRows = expr(num(tb_maxrows << getText));
+
+		// Use the minumum of the user specified maxRows and the API Row limit as the number of rows to pull in a single request
+		ns:maxCount = minimum(ns:maxRows, ns:APIRowLimit);
+		// Gets the data server's web ID based on the user's preferences
+		serverid = ns:DataServerIdRequest(expr(serverName));
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+		 "End of the generic function definition.\!N\!N" ||
+		 "Start of script to pull this specific data." ||
+		 "\!N\!N**************************************\!N");
+	));
+
+	// Clear cached time zone difference in case this server is different than the last one that ran
+	InsertInto(NewTblExpr,
+		If(
+			Length( Loc( ns << Get Keys, "timeDifference" ) ) > 0,
+			ns << Remove( "timeDifference" )
+		);
+	);
+
+	// Get pointIDs
+	InsertInto(NewTblExpr,
+		evalExpr({pointIDs, pointNames} = ns:PointRequest(serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
+	);
+
+	// Call a Table function depending on the query type
+	tableRequestExpr = Match(querytype,
+		"Point Info",
+			Expr(dtLong = ns:GetPointAttributesTable(pointIDs)),
+		"Snapshot Values",
+			Expr(dtLong = ns:GetSnapshotValuesTable(pointIDs)),
+		"All Archived Values",
+			EvalExpr(dtLong = ns:GetArchiveValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime))),
+		"Interpolated Values",
+			EvalExpr(dtLong = ns:GetInterpolatedValuesTable(pointIDs, pointNames, Expr(startTime), Expr(endTime), Expr(intervalTime))),
+		"Average",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Average", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Count",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Count", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Max",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Maximum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Min",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Minimum", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Population Standard Deviation",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "PopulationStdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Range",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Range", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Standard Deviation",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "StdDev", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		"Totals",
+			EvalExpr(dtLong = ns:GetSummaryValuesTableWithStepTime(pointIDs, pointNames, "Total", Expr(calculationBasis), Expr(startTime), Expr(endTime), Expr(intervalTime), Expr(stepTime))),
+		throw("Unknown query type")
+	);
+	InsertInto(NewTblExpr, NameExpr(tableRequestExpr));
+
+	// Check if user's Max Rows is exceeded. For Point Info and Snapshot Value compare to row count.
+	// For other queries compare to the most data for any one tag pulled.
+	InsertInto(NewTblExpr, EvalExpr(
+		if(!contains({"Point Info", "Snapshot Values"}, expr(querytype)),
+			dtCount = dtLong << summary(group(:tag), "private");
+			rowCount = colMax(column(dtCount, "N Rows"));
+			close(dtCount, "nosave");
+		,
+			rowCount = nRows(dtLong)
+		);
+		if(rowCount >= ns:maxRows,
+			NewWindow("Max Rows Exceeded", <<modal,
+				TextBox(
+					"Met or exceeded the maximum number of rows (" || char(ns:maxRows) ||
+					") for this query. Increase the allowed maxrows or restrict the query. "||
+					" Some results might be missing."
+				)
+			);
+			dtLong << BringWindowToFront;
+		);
+		oldcn = expr(oldcn);
+		oldcncorrected = oldcn;
+	));
+	
+	
+	InsertInto(NewTblExpr, EvalExpr(
+		newcn = expr(newcn);
+	) );
+	If(cnformat != "tag",
+		//set values in the tag column so after pivoted the right names show up
+		//Change Column Names 
+		InsertInto(NewTblExpr, EvalExpr(
+			For( i = 1, i <= N Rows( dtLong ), i++,
+				pos = Min( Loc( Transform Each({oldcn}, oldcncorrected, Uppercase(oldcn) ), Uppercase( Column( dtLong, "tag" )[i]) ) );
+				If( pos > 0,
+					Column( dtLong, "tag" )[i] = newcn[pos]
+				)
+			)
+		))
+	);
+
+	If( TableFormat == "Wide",
+	
+		// Capture per-row field return flags from the points table
+		returnValue  = (dtPoints:"Return value"  << Get Values)[Loc(!ismissingcn)];
+		returnSvalue = (dtPoints:"Return svalue" << Get Values)[Loc(!ismissingcn)];
+		returnStatus = (dtPoints:"Return status" << Get Values)[Loc(!ismissingcn)];
+		
+		// Make wide table
+		InsertInto(NewTblExpr, EvalExpr(
+			dtWide = dtLong << Split(
+				Split By( :tag ),
+				Split( expr(ColToSplit) ),
+				Group( :time ),
+				Remaining Columns( Drop All ),
+				Sort by Column Property
+			);
+			close(dtLong, "nosave");
+			
+			// Remove columns the user opted not to return and rename
+			returnValueList  = Expr( returnValue );
+			returnSvalueList = Expr( returnSvalue );
+			returnStatusList = Expr( returnStatus );
+			colsToDelete = {};
+			For Each( {cnname, i}, oldcn,
+				if(((Uppercase(returnValueList[i]) == "YES") + (Uppercase(returnsValueList[i]) == "YES") + (Uppercase(returnStatusList[i]) == "YES") == 1) & (hideprefix == 1),
+					canrename = 1,
+					canrename = 0
+				);
+				if(
+					Uppercase(returnValueList[i]) != "YES", 
+					Insert Into(colsToDelete, "value " || newcn[i]),
+					canrename == 1,
+					try( Column(dtWide,"value " || newcn[i]) << set name(newcn[i]) )
+				);
+				if(
+					Uppercase(returnsValueList[i]) != "YES",
+					Insert Into(colsToDelete, "svalue " || newcn[i]),
+					canrename == 1,
+					try( Column(dtWide,"svalue " || newcn[i]) << set name(newcn[i]) )
+				);
+				if(
+					Uppercase(returnStatusList[i]) != "YES", 
+					Insert Into(colsToDelete, "status " || newcn[i]),
+					canrename == 1,
+					try( Column(dtWide,"status " || newcn[i]) << set name(newcn[i]) )
+				);
+			);			
+			If( N Items( colsToDelete ) > 0, dtWide << Delete Columns( colsToDelete ) );
+
+			//Set name
+			dtWide << setName( Expr( tableName ) );
+		));
+		If(cb_tagtonotes << Get,
+			// Save column properties
+			InsertInto(NewTblExpr, EvalExpr(
+				For( i = 1, i <= N Cols( dtWide ), i++,
+					cn = Regex( Column( dtWide, i ) << Get Name, "((value )|(svalue )|(status ))?(.*)", "\5" );
+					If( !Is Missing( cn ),
+						pos = Min( Loc( oldcn, cn ) );
+						If( pos > 0,
+							Column( dtWide, i ) << Set Property( "PI tag", oldcncorrected[pos] );
+							Column( dtWide, i ) << Set Property( "PI Original Column Name", Column( dtWide, i ) << Get Name );
+							Column( dtWide, i ) << Set Property( "PI call type", expr(querytype) );
+							Column( dtWide, i ) << Set Property( "PI interval", expr(intervalTime) );
+							Column( dtWide, i ) << Set Property( "PI Server", expr(serverName) );
+							If( contains({"Average", "Count", "Max", "Min", "Population Standard Deviation", "Range", "Standard Deviation", "Totals"}, expr(querytype)), 
+								Column( dtWide, i ) << Set Property( "PI step", expr(stepTime));
+								Column( dtWide, i ) << Set Property( "PI interval start offset", "-" || expr(stepTime));
+								Column( dtWide, i ) << Set Property( "PI interval end offset", "");
+							)
+						);
+					);
+				)
+			))
+		);
+	,
+		InsertInto(NewTblExpr, EvalExpr(
+			dtLong << setName( Expr( tableName ) );
+		));
+	);
+
+	InsertInto( NewTblExpr , EvalExpr(
+		dt = DataTable( Expr( tableName ) );
+		Note to Users = Expr("\!N**************************************\!N\!N" ||
+			"End of the script to pull this specific data.\!N\!N" ||
+			"Add scripts to manipulate the table or build reports after these comments.\!N" ||
+			"- Change any data table references to 'dt' as in the example below\!N" ||
+			"- Make sure dt; is the last line of the script\!N\!N" ||
+			"Example:\!N" ||
+			"\[dt:value SINUSOID << Set Property( "Spec Limits", {LSL( -50 ), USL( 50 ), Show Limits( 0 )} );]\\!N" ||
+			"dt;" ||
+			"\!N\!N**************************************\!N");
+		dt;
+	));
+
+	Return( NameExpr(NewTblExpr) );
+);

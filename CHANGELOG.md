@@ -7,7 +7,7 @@ Notable changes to this project are documented here.
 - 
 
 ### Changed
-- 
+- Behind the scenes: refactored code into smaller files
 
 ### Fixed
 - Render README and CHANGELOG during build for cleaner view in the add-in

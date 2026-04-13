@@ -24,7 +24,11 @@ ns:metadata_aa = Include( "customMetadata.jsl" );
 Include( "addinLog.jsl" );
 Include( "addinTools.jsl" );
 Include( "addinUserPref.jsl" );
-Include( "queries.jsl" );
+Include( "queries/checkConnections.jsl" );
+Include( "queries/dataTables.jsl" );
+Include( "queries/http.jsl" );
+Include( "queries/pointQueries.jsl" );
+Include( "queries/timeUtils.jsl" );
 
 // This is the most rows that the web API can return
 ns:APIRowLimit = 150000;

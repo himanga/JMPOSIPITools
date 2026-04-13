@@ -1,0 +1,99 @@
+// Sends a GET request to the endpoint with the specified parameters
+ns:GetRequest = Function({endpoint, queryParameters},
+	{DEFAULT LOCAL},
+	baseURL = ns:baseURL;
+	if(!EndsWith(baseURL, "/"),
+		baseURL ||= "/"
+	);
+	if(
+		ns:live==1,
+		request = Expr( New HTTP Request(
+			URL(baseURL || endpoint),
+			Method("GET"),
+			QueryString(queryParameters),
+			Headers( {"Accept: application/json"} ),
+			Username("%_UID_%"),
+			Password("%_PWD_%")
+		) );,
+		request = Expr( New HTTP Request(
+			URL(baseURL || endpoint),
+			Method("GET"),
+			QueryString(queryParameters),
+			Headers( {"Accept: application/json"} ),
+			Password(":")
+		) );
+	);
+	
+	if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
+		Insert Into(request, Expr(Secure(0)));
+	);
+	request = Eval( request );
+	result = request << send;
+	if(!(request << IsSuccess),
+		errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
+		errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
+		errorMessage ||= "\!NWeb Request Status: " || (request << GetStatusMessage);
+		errorMessage ||= "\!NError from PI: " || try(char(parseJSON(result)["Errors"]), "");
+		Throw(errorMessage);
+	);
+	return(parseJSON(result));
+);
+
+/*
+    Function: FetchUtcHeader
+        ---Prototype---
+        ns:FetchUtcHeader( Number islive = 0 )
+        -----------------
+        Sends a lightweight HTTP GET request to the configured base URL
+        and extracts the UTC timestamp from the HTTP response headers.
+
+    Parameters:
+    - islive - When nonzero, sends credentials with the request.
+
+    Returns:
+        A numeric JMP date representing the UTC time reported
+        by the server Date response header.
+
+    Examples:
+        > utc = ns:FetchUtcHeader();
+        > utc + InHours(1);
+
+    Notes:
+        - This function performs network I/O.
+        - No caching or timezone adjustment is performed.
+        - Errors raised by HTTP Request or Send are propagated.
+*/
+ns:FetchUtcHeader = function( {islive = 0},
+    {DEFAULT LOCAL},
+
+    requestExpr =
+        If( islive,
+            Expr(
+                New HTTP Request(
+                    URL( ns:baseURL ),
+                    Method( "GET" ),
+                    Username( "%_UID_%" ),
+                    Password( "%_PWD_%" )
+                )
+            ),
+            Expr(
+                New HTTP Request(
+                    URL( ns:baseURL ),
+                    Method( "GET" ),
+                    Password( ":" )
+                )
+            )
+        );
+
+    If(
+        Lowercase( ns:UserPref["Allow_Insecure_Connections"] ) == "yes",
+        Insert Into( requestExpr, Expr( Secure( 0 ) ) )
+    );
+
+    request = Eval( requestExpr );
+    request << Send;
+
+    headers = request << Get Response Headers();
+
+    headers["date"]
+);
