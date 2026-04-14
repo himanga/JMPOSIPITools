@@ -57,12 +57,12 @@ BuildJMPJSL = function( {inputs}, {txt},
 		 "and to build reports.\!N\!N" ||
 		 "Start of the generic function definition." ||
 		 "\!N\!N**************************************\!N");
-		 
-		 CreatedWithAddInID = Expr( ns:metadata_aa["id"] );
-		 CreatedWithAddInVersion = Expr( ns:metadata_aa["addinVersion"] );
-		 CreatedWithAddInState = Expr( ns:metadata_aa["state"] );
-		 CreatedWithAddInBuildDate = Expr(  format(ns:metadata_aa["buildDate"] , "yyyy-mm-dd" ) || " " || 
-			ns:padnum(hour( ns:metadata_aa["buildDate"] ))|| ":" || ns:padnum(minute( ns:metadata_aa["buildDate"] )), << set width( 500 ) );
+
+		 CreatedWithAddInID = Expr( inputs["addinId"] );
+		 CreatedWithAddInVersion = Expr( inputs["addinVersion"] );
+		 CreatedWithAddInState = Expr( inputs["addinState"] );
+	 	 CreatedWithAddInBuildDate = Expr( format( inputs["addinBuildDate"], "yyyy-mm-dd" ) || " " ||
+			ns:padnum( hour( inputs["addinBuildDate"] ) ) || ":" || ns:padnum( minute( inputs["addinBuildDate"] ) ), << set width( 500 ) );
 	));
 	
 	if(
