@@ -1,4 +1,4 @@
-//flag to output a bunch of status info to the log file
+﻿//flag to output a bunch of status info to the log file
 debug = 0;
 
 //window box, all code is inside this box
@@ -462,20 +462,20 @@ nw = New Window( "Get Aveva PI Data",
 			H List Box(
 				//button to run the script
 				Button Box( "Run query",
-					
 					ns:logusage( "Run query" );
-					
 					UpdateOutput();
-					
-					Eval( Parse( JMPJSLout << get text ) );
-					
-					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Live Data Source\!", ^LiveJSLout << get text^ )" ) ) ) );
+					local(
+						{DEFAULT LOCAL},
+						dt = .;
+						Eval( Parse( JMPJSLout << get text ) );
 
-					Try( Eval( Parse( Eval Insert( "dtLong << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"JMP Desktop Data Source\!", ^JMPJSLout << get text^ )" ) ) ) );
-
-					Try( Eval( Parse( Eval Insert( "dtWide << New Script( \!"Tag Table\!", ^dtPoints << Get Script^ )" ) ) ) );
+						Eval( Eval Expr(
+							dt << New Script( "JMP Desktop Data Source", Eval(JMPJSLout << get text) );
+							dt << New Script( "JMP Live Data Source", Eval(LiveJSLout << get text) );
+							dt << New Script( "Tag Table", Eval(dtPoints << Get Script) );
+						) );
+					);
+					
 
 				), //end of 'OK' command button
 				
@@ -484,6 +484,38 @@ nw = New Window( "Get Aveva PI Data",
 					nw << Close Window;
 				),
 				Spacer Box( Size( 20, 20 ) ),
+				Button Box( "Recall settings from table...",
+					// Find all open tables with saved PI Query Settings
+					candidates = Filter Each( {dtname},
+						Get Data Table List(),
+						length( dtname << Get Property( "PI Query Settings" ) ) > 0;
+					);
+					If( N Items( candidates ) == 0,
+						New Window( "Recall Settings", Modal,
+							Text Box( "No open tables with saved PI Query Settings found." )
+						),
+						recallWin = New Window( "Recall Settings",
+							V List Box(
+								Text Box( "Select a table to load settings from:" ),
+								Spacer Box( Size( 0, 8 ) ),
+								lb_recall = List Box( candidates, width( 300 ) ),
+								Spacer Box( Size( 0, 8 ) ),
+								H List Box(
+									Button Box( "Load",
+										sel = ( lb_recall << Get Selected )[1];
+										If( !Is Missing( sel ),
+											recallWin << Close Window;
+											LoadSettingsFromTable( Data Table( sel ) );
+											UpdateOutput();
+										)
+									),
+									Button Box( "Cancel", recallWin << Close Window )
+								),
+								<< Padding( Top(20), Left(20), Right(20), Bottom(20) )
+							)
+						);
+					);
+				),
 				Button Box( "Examples",
 					exmplWin = New Window( "Example Queries",
 						V List box(

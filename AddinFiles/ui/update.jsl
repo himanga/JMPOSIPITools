@@ -115,17 +115,18 @@ UpdateOutput = function( {},
 	
 
 	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
-	// JMP Script
-	inputs["live"] = 0;
-	JMPJSLout << set text( Char(BuildJMPJSL(inputs)));
+	inputsDesktop = inputs;
+	inputsDesktop["live"] = 0;
+	JMPJSLout << set text( Char( BuildJMPJSL( inputsDesktop ) ) );
 	wasJMPOpen = obJMPJSLScript << GetOpen;
 	obJMPJSLScript << setopen(1);
 	JMPJSLout << Reformat;
 	obJMPJSLScript << setopen(wasJMPOpen);
 
 	// JMP Live Script
-	inputs["live"] = 1;
-	LiveJSLout << set text( Char(BuildJMPJSL(inputs)));
+	inputsLive = inputs;
+	inputsLive["live"] = 1;
+	LiveJSLout << set text( Char( BuildJMPJSL( inputsLive ) ) );
 	wasLiveOpen = obLiveJSLScript << GetOpen;
 	obLiveJSLScript << SetOpen(1);
 	LiveJSLout << Reformat;
@@ -225,11 +226,11 @@ ApplyQueryInputs = function( {inputs},
 	tb_maxrows    << Set Text( Char( inputs["maxRows"] ) );
 
 	// Query shape
-	cb_querytypes << Set Selected( inputs["querytype"] );
-	cb_cnformat   << Set Selected( inputs["cnformat"] );
-	rb_matchtype  << Set Selected( inputs["matchType"] );
-	rb_calctype   << Set Selected( inputs["calculationBasis"] );
-	rb_tblformat  << Set Selected( inputs["TableFormat"] );
+	cb_querytypes << Set( Loc( cb_querytypes << Get Items, inputs["querytype"] ) );
+	cb_cnformat   << Set( Loc( cb_cnformat << Get Items, inputs["cnformat"] ) );
+	rb_matchtype   << Set( Loc( rb_matchtype << Get Items, inputs["matchType"] ) );
+	rb_calctype   << Set( Loc( rb_calctype << Get Items, inputs["calculationBasis"] ) );
+	rb_tblformat   << Set( Loc( rb_tblformat << Get Items, inputs["TableFormat"] ) );
 
 	// Time range
 	TimeStart         << Set Text( inputs["startTime"] );
@@ -240,8 +241,8 @@ ApplyQueryInputs = function( {inputs},
 
 	// Output options
 	tb_tablename  << Set Text( inputs["tableName"] );
-	cb_hideprefix << Set( inputs["hideprefix"] );
-	cb_tagtonotes << Set( inputs["tagToNotes"], 1 );
+	cb_hideprefix << Set( Loc( cb_hideprefix << Get Items, inputs["hideprefix"] ) );
+	cb_tagtonotes << Set( Loc( cb_tagtonotes << Get Items, inputs["tagToNotes"] ) );
 
 	// Tag table
 	nrows = N Items( inputs["TagSearchStrings"] );
@@ -254,6 +255,38 @@ ApplyQueryInputs = function( {inputs},
 	dtPoints:"Return value"  << Set Values( inputs["returnValue"] );
 	dtPoints:"Return svalue" << Set Values( inputs["returnSvalue"] );
 	dtPoints:"Return status" << Set Values( inputs["returnStatus"] );
+);
+/*
+    Function: LoadSettingsFromTable
+        ---Prototype---
+        LoadSettingsFromTable( Table dt )
+        ---------------------------------
+        Reads saved query settings from a data table property and
+        applies them to the UI via <ApplyQueryInputs>.
+
+    Parameters:
+    - dt - A data table previously produced by a Run query call.
+
+    Notes:
+        - Throws if the table has no saved PI Query Settings property.
+        - Version compatibility check extension point is in
+          <ApplyQueryInputs>.
+        - Caller is responsible for calling UpdateOutput() afterwards.
+*/
+LoadSettingsFromTable = function( {dt},
+    {DEFAULT LOCAL},
+    savedInputs = dt << Get Table Property( "PI Query Settings" );
+    If( savedInputs == "",
+        Throw( "No saved PI Query Settings found in this table." )
+    );
+    DisableUpdate = 1;
+    Try(
+        ApplyQueryInputs( savedInputs );
+        DisableUpdate = 0;
+    ,
+        DisableUpdate = 0;
+        Throw( exception_msg );
+    );
 );
 
 //Set default Table format

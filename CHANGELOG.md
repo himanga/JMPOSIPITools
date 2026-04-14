@@ -4,7 +4,7 @@ Notable changes to this project are documented here.
 ## [HEAD]
 
 ### Added
-- 
+- Settings are saved to the output table and they can be recalled.
 
 ### Changed
 - Behind the scenes: refactored code into smaller files

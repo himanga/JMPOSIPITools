@@ -239,6 +239,7 @@ BuildJMPJSL = function( {inputs}, {txt},
 
 			//Set name
 			dtWide << setName( Expr( tableName ) );
+			tableName = dtWide << Get Name("Ignore Extension");
 		));
 		If(inputs["tagToNotes"],
 			// Save column properties
@@ -265,12 +266,22 @@ BuildJMPJSL = function( {inputs}, {txt},
 		);
 	,
 		InsertInto(NewTblExpr, EvalExpr(
-			dtLong << setName( Expr( tableName ) );
+			dtLong << setName( Expr( tableName ) );;
+			tableName = dtLong << Get Name("Ignore Extension");
 		));
 	);
 
+	// Save query settings to output tables for later recall
+	InsertInto( NewTblExpr , Expr(
+		runInputs = inputs;
+		runInputs["queryDate"] = Today();
+		Eval( EvalExpr(
+			DataTable( tableName ) << Set Table Property( "PI Query Settings", Expr( Name Expr( runInputs ) ) )
+		) )
+	));
+
 	InsertInto( NewTblExpr , EvalExpr(
-		dt = DataTable( Expr( tableName ) );
+		dt = DataTable( tableName );
 		Note to Users = Expr("\!N**************************************\!N\!N" ||
 			"End of the script to pull this specific data.\!N\!N" ||
 			"Add scripts to manipulate the table or build reports after these comments.\!N" ||
