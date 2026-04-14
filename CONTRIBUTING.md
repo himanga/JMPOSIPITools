@@ -1,55 +1,62 @@
 # How to Contribute
 
-Your contributions to this project are welcome.  Submit issues or merge requests to get things started.
+Your contributions to this project are welcome. Submit issues or pull requests to get things started.
 
 ## Developer Dependencies
-To make changes to and rebuild this add-in, you will also need:
 
-- Natural Docs (program to install)
-- jsl-hamcrest add-in for JMP (add-in for JMP, available on community.jmp.com)
-- Powershell
-- git (program to install)
-- GitHub account
+To make changes to and rebuild this add-in, you will need:
+
+- **JMP Pro** — path must match the version configured in `build/buildConfig.ps1` (default: `%ProgramFiles%\JMP\JMPPRO\19\jmp.exe`)
+- **Natural Docs** — path must match the one configured in `build/buildConfig.ps1` (default: `C:\Program Files (x86)\Natural Docs\NaturalDocs.exe`)
+- **jsl-hamcrest** JMP add-in — available on community.jmp.com
+- **PowerShell** with internet access on first build (the `MarkdownToHtml` module is installed automatically if missing)
+- **git**
+- **GitHub account**
 
 ## Steps to Contribute
 
-- Install dependencies above
-- Fork and clone git repository
-- Make changes
-- Document code using natural docs language
-- Update and run unit tests for any new functions for which unit testing makes sense
-- Run the powershell script to build the add-in, adjusting the path to the Natural Docs exe if necessary.
-- test add-in functionality (unit tests do not test user interaction or actually pulling data)
-- Commit changes in git and push commits to GitHub
-- Open a pull request to the original repository
+1. Install dependencies above
+2. Fork and clone the repository
+3. Make changes
+4. Document any new or modified functions using NaturalDocs comment syntax
+5. Add or update unit tests for any new functions where testing makes sense
+6. Run `build\build_Release.ps1` to build the add-in and run unit tests — all tests must pass
+7. If JMP or NaturalDocs are installed in non-default locations, create
+   `build/buildConfig.local.ps1` (already gitignored) and override just
+   the paths you need. See `build/buildConfig.ps1` for available variables.
+8. Test add-in functionality manually — unit tests do not cover user interaction or live data pulls
+9. Commit and push changes to your fork
+10. Open a pull request to the original repository
+
+## Build Scripts
+
+There are two build scripts in the `build\` folder:
+
+- **`build_Quick.ps1`** — builds the add-in and opens it in JMP without running unit tests. Use this during active development.
+- **`build_Release.ps1`** — builds the add-in, runs all unit tests, and reports results. Use this before submitting a pull request.
+
+Both scripts read their configuration from `build\buildConfig.ps1`. The `.jmpaddin` output file is named automatically as `JMPOSIPITools_{version}_{state}.jmpaddin`.
 
 ## Versioning
+
 To release a new version:
-- Merge all branches into master
-- Run the build script - ensure all unit tests pass
-- Test all functionality of the add-in - user interfance elements are not tested in unit tests
-- Ensure Help documentation is updated
-- Edit files preparing for version but do not commit yet
-    - In AddinFiles/customMetadata.jsl, update:
-        - addinVersion (if a major update, can leave it for testing)
-        - state (to PROD or TEST)
-    - In AddinFiles/addin.def, update:
-        - addinVersion (match the one in customMetadata.jsl)
-        - minJmpVersion if necessary
-    - In CHANGELOG.md: 
-        - Change HEAD to match the version number
-- Rebuild the add-in, rename the .jmpaddin file to be simila to 'JMPOSIPITools_x.xx' and save this copy so you can upload it to GitHub and the JMP Community for production releases
-- In AddinFiles/custom Metadata.jsl, update the buildDate (copy this from the output of the build script temp add-in files)
-- Create a commmit on the master branch with a message similar to 'Version x.xx' or 'Version x.xxxx Test'
-- If a production release - create a new tag in the format 'vx.xx' with a message similar to 'Version x.xx'
-- Create a release in github from that tag, copy the changelog section into the release details
-- Upload the .jmpaddin file to thhe assets for that release
-- Create a commit on the master branch with the message 'bump' that updates:
-    - In AddinFiles/customMetadata.jsl, update:
-        - addinVersion (increment by 0.0001)
-        - buildDate (increment by 1)
-        - state (to DEV)
-    - In AddinFiles/addin.def, update:
-        - addinVersion (match the one in customMetadata.jsl)
-    - In CHANGELOG.md: 
-        - Duplicate the headings repeated in each section, with HEAD as the version number
+
+1. Merge all branches into master
+2. Run `build\build_Release.ps1` — ensure all unit tests pass
+3. Test all add-in functionality manually — UI elements and live data pulls are not covered by unit tests
+4. Ensure Help documentation is up to date
+5. Update the following files (do not commit yet):
+   - **`AddinFiles/customMetadata.jsl`**: update `addinVersion` and set `state` to `PROD` or `TEST`
+   - **`AddinFiles/addin.def`**: update `addinVersion` to match `customMetadata.jsl`, update `minJmpVersion` if necessary
+   - **`CHANGELOG.md`**: replace `HEAD` with the version number
+6. Run `build\build_Release.ps1` again — the build date is stamped automatically, no manual edit needed
+7. Save the output `.jmpaddin` file for upload to GitHub and the JMP Community
+8. Create a commit on master with message `Version x.xx` or `Version x.xx TEST`
+9. For production releases:
+   - Create a git tag in the format `vx.xx` with message `Version x.xx`
+   - Create a GitHub release from that tag, copying the relevant CHANGELOG section into the release notes
+   - Upload the `.jmpaddin` file to the release assets
+10. Create a follow-up `bump` commit on master that:
+    - In **`AddinFiles/customMetadata.jsl`**: increments `addinVersion` by 0.0001, increments `buildDate` by 1, sets `state` to `DEV`
+    - In **`AddinFiles/addin.def`**: updates `addinVersion` to match
+    - In **`CHANGELOG.md`**: adds a new `HEAD` section by duplicating the section headings from the previous release

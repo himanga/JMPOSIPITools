@@ -8,6 +8,7 @@ AddinFiles/Docs/**
 TestAddinHome/**
 /Tests/Results/**
 AddinFilesTempForBuild/**
+build/buildConfig.local.ps1
 temp-loadaddin.jsl
 *.jmpaddin
 *.zip
