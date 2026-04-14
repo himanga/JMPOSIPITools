@@ -1,0 +1,108 @@
+//Standard box to display description for each input
+tbDesc = Function( {descmsg, helpmsg, wdth = 100},
+	Eval( Eval Expr(  VCenter Box( 
+		Text Box( 
+			descmsg,
+			<<Set Width( wdth ),
+			<< Set Tip( helpmsg )
+		)
+	) ) )
+);
+
+//Standard box to get text info from the user
+tebText = Function( {initval, varname, helpmsg = "", wdth = 150,
+		fn = function( {this}, UpdateOutput(); ) },
+	centeredbox = Eval( (  VCenter Box( 
+		tbtemp = Text Edit Box(
+			initval,
+			<< Justify Text( Left ),
+			<< Set Width( wdth ),
+			<< SetFunction( fn ),
+			<< Set Tip( helpmsg )
+		),
+	) ) );
+	
+	Eval( Parse( Eval Insert( "^varname^ = tbtemp" ) ) );
+	
+	return(centeredbox)
+);
+
+//Standard combo box
+cbCombo = Function( {values, fn, varname, helpmsg = "", wdth = 150 },
+	cbexpr2 = (Eval Expr(  VCenter Box( 
+		ns:assignparsename(
+			varname,
+			Combo Box(
+				values,
+				<< Set Width( wdth ),
+				<< Set Tip( helpmsg ),
+				<< Set Function( Expr( Name Expr( fn ) ) )
+			)
+		)
+	) ) );
+	centeredbox = Eval( cbexpr2 );
+	
+	return(centeredbox);
+);
+
+//Standard button to display help info
+bbHelp = Function( {helpmsg, HelpType = "stdtext" }, {toppad, bb},
+	toppad = If( 
+		HelpType == "stdtext", -2, 
+		HelpType == "stdoutline", 0,
+		6
+	);
+	bb = Eval( Eval Expr( Button Box( "",
+		<<Set Icon("WinToolsHelp"),
+		<<Set Script( New window( "Help", Modal, Text Box( Expr( helpmsg ), Set Width( 500 ) ) ) ),
+		<<Padding( Top(toppad), Left(-2), Right(-2), Bottom(-2) ),
+		<< Set Tip( helpmsg )
+	) ) );
+	
+	If( 
+		HelpType == "stdtext", 
+		return( V Center Box( bb ) ), 
+		return( bb )
+	);
+);
+
+//standard spacer between inputs
+sbDefault = Function( {}, Spacer Box( Size( 3, 3 ) ) );
+
+//Standard line for text input
+stdtxtInput = Function( { varname, descmsg, initval, helpmsg, nlines = 1, descwidth = 100, editwidth = 250,
+		fn = function( {this}, UpdateOutput(); ) },
+
+	Eval( Eval Expr(
+		H List Box(
+			tbDesc( Expr( descmsg ), helpmsg, wdth = descwidth ),
+			sbDefault(), 
+			tebText( initval, varname, helpmsg, wdth = editwidth ),
+			sbDefault(), 
+			bbHelp( helpmsg )
+		)
+	) )
+);
+
+//Standard combobox input
+stdcbInput = Function( { descmsg, varname, values, fn, helpmsg, descwidth = 97 },
+	
+	H List Box(
+		Eval( Eval Expr( 
+			tbDesc( Expr( descmsg ), helpmsg, wdth = descwidth )
+		) ),
+		
+		sbDefault(), 
+		
+		cbexpr = (Eval Expr(
+			cbCombo( Expr( Name Expr( values ) ), Name Expr( fn ), varname, helpmsg )
+		));
+		
+		Eval(cbexpr),
+		
+		sbDefault(), 
+		
+		bbHelp( helpmsg )
+		
+	)
+);

@@ -1,0 +1,98 @@
+/*
+    Function: CheckConnectionsinUserPref
+        ---Prototype---
+        CheckConnectionsinUserPref()
+        -----------------
+        Reads connection definitions from user preferences, evaluates
+        each connection, and reports server timing and connection
+        metadata in a summary table.  This is meant for troubleshooting
+        and is not accessible in the user interface. It can take a long time
+        depending how many connetions the user has.
+
+    Parameters:
+        None.
+
+    Returns:
+        A JMP data table named with one row per connection.
+
+    Details:
+        - Connection definitions are read from the user preference
+          key "Connection_List".
+        - Each connection string is split on semicolons and expanded
+          into individual fields.
+        - Server UTC time is retrieved via HTTP headers.
+        - Local time is derived using the current timezone offset.
+        - Errors are captured per connection and stored in the table.
+
+    Columns Created:
+        - Connection String   : Raw connection definition text
+        - Name                : Connection name
+        - Server              : Target server name
+        - URL                 : Base server URL
+        - TimeServer          : UTC time reported by the server
+        - TimeLocal           : Local time adjusted by timezone offset
+        - TimeDifference      : Difference between local and server time
+        - Server webid        : Server identifier retrieved via API
+        - Error Getting Time  : Error message if time retrieval fails
+        - Error Getting Server: Error message if server lookup fails
+
+    Examples:
+		  Open a new script window and copy this code into it, then run it:
+
+		  --- Code
+		  Names default to here(1);
+		  ns = Namespace( "com.github.himanga.JMPOSIPITools.addinnamespace" );
+		  ns:CheckConnectionsinUserPref();
+		  ---
+
+    Notes:
+        - The table is updated incrementally as each connection is
+          processed.
+        - Errors for one connection do not stop processing of others.
+*/
+ns:CheckConnectionsinUserPref = function({}, {DEFAULT LOCAL},
+	//get connections from user preferences
+	ConnectionsFromUserPref = Words(ns:UserPref["Connection_List"], "\!N");
+	//split into parts
+	ConnectionsFromUserPref = Transform Each({cstr, i}, ConnectionsFromUserPref, Insert( Eval List({ cstr }), words(cstr, ";") ) );
+
+	dtConnections = New Table( "Connections",
+		Add Rows( n items(ConnectionsFromUserPref) ),
+		New Column( "Connection String", Character, "Nominal", Set Values( Transform Each({r}, ConnectionsFromUserPref, r[1] ) ), Set Display Width(175) ),
+		New Column( "Name", Character, "Nominal", Set Values( Transform Each({r}, ConnectionsFromUserPref, r[2] ) ) ),
+		New Column( "Server", Character, "Nominal", Set Values( Transform Each({r}, ConnectionsFromUserPref, r[3] ) ) ),
+		New Column( "URL", Character, "Nominal", Set Values( Transform Each({r}, ConnectionsFromUserPref, r[4] ) ), Set Display Width(175) ),
+		New Column( "TimeServer", Numeric, "Continuous", Format( "yyyy-mm-ddThh:mm:ss", 19, 0 ), Input Format( "yyyy-mm-ddThh:mm:ss", 0 ) ),
+		New Column( "TimeLocal", Numeric, "Continuous", Format( "yyyy-mm-ddThh:mm:ss", 19, 0 ), Input Format( "yyyy-mm-ddThh:mm:ss", 0 ) ),
+		New Column( "TimeDifference", Numeric, "Continuous", Format("Best", 12), Formula(:TimeLocal - :TimeServer)),
+		New Column( "Server webid", Character, "Nominal", Set Display Width(175) ),
+		New Column( "Error Getting Time", Character, "Nominal", Set Display Width(175) ),
+		New Column( "Error Getting Server", Character, "Nominal", Set Display Width(175) );
+	);
+
+	dtConnections << Maximize Window( 1 );
+
+	For(i=1, i <= min(nrow(dtConnections)), i++,
+		conn = ns:MakeConnection(
+			dtConnections:URL[i],
+			dtConnections:Server[i],
+			0, //live
+			num(ns:UserPref["Max_Rows"]),
+    		ns:UserPref["Allow_Insecure_Connections"]
+		);
+		try(
+			dtConnections:TimeServer[i] = ns:FetchUtcHeader(conn);
+			dtConnections:TimeLocal[i] = Today() - ns:GetLocalTimeZoneDifference(conn);
+			try(
+				dtConnections:Server webid[i] = ns:DataServerIdRequest(conn),
+				dtConnections:Error Getting Server[i] = char(exception_msg)
+			)
+		,
+			dtConnections:Error Getting Time[i] = char(exception_msg)
+		);
+		//make sure table updates
+		dtConnections << Run Formulas();
+		dtConnections << bring window to front;
+		wait(0.1);
+	);
+);

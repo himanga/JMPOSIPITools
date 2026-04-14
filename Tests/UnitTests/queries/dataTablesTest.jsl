@@ -1,0 +1,71 @@
+ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+ut test( "queries", "GreatestCommonDivisor", Expr(
+
+    //
+    // Correct computation tests
+    //
+
+    ut assert value(
+        ns:GreatestCommonDivisor( 12, 8 ),
+        ut equal to( 4 ),
+        "GCD of 12 and 8 should be 4"
+    );
+
+    ut assert value(
+        ns:GreatestCommonDivisor( 54, 24 ),
+        ut equal to( 6 ),
+        "GCD of 54 and 24 should be 6"
+    );
+
+    // Test case where a < b (swapping should occur)
+    ut assert value(
+        ns:GreatestCommonDivisor( 9, 27 ),
+        ut equal to( 9 ),
+        "GCD should work even when a < b"
+    );
+
+    // Test relatively prime numbers
+    ut assert value(
+        ns:GreatestCommonDivisor( 17, 5 ),
+        ut equal to( 1 ),
+        "GCD of 17 and 5 should be 1"
+    );
+
+
+    //
+    // Error tests
+    //
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor() ),
+        ut throws( ut anything() ),
+        "Function should error when both arguments missing"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( , 5 ) ),
+        ut throws( ut anything() ),
+        "Function should error when first argument missing"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( 10, ) ),
+        ut throws( ut anything() ),
+        "Function should error when second argument missing"
+    );
+
+    // Error on wrong types
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( "x", 5 ) ),
+        ut throws( ut anything() ),
+        "Function should error on invalid type for a"
+    );
+
+    ut assert that(
+        Expr( ns:GreatestCommonDivisor( 10, "y" ) ),
+        ut throws( ut anything() ),
+        "Function should error on invalid type for b"
+    );
+
+));

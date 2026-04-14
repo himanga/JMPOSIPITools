@@ -13,9 +13,6 @@ If(
 //store the home directory for this add-in
 ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
 
-//this is not, by default, running inside jmp live
-ns:live = 0;
-
 //read a file with information about the add-in (name, developer, etc)
 ns:metadata_aa = Include( "customMetadata.jsl" );
 
@@ -24,7 +21,11 @@ ns:metadata_aa = Include( "customMetadata.jsl" );
 Include( "addinLog.jsl" );
 Include( "addinTools.jsl" );
 Include( "addinUserPref.jsl" );
-Include( "queries.jsl" );
+Include( "queries/checkConnections.jsl" );
+Include( "queries/dataTables.jsl" );
+Include( "queries/http.jsl" );
+Include( "queries/pointQueries.jsl" );
+Include( "queries/timeUtils.jsl" );
 
 // This is the most rows that the web API can return
 ns:APIRowLimit = 150000;

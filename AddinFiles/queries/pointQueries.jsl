@@ -1,0 +1,132 @@
+/*
+    Function: DataServerIdRequest
+        ---Prototype---
+        ns:DataServerIdRequest( AssociativeArray conn )
+        ---------------
+        Gets the PI Data Server WebId for the server named in conn.
+
+    Parameters:
+    - conn - A connection associative array created by <MakeConnection>.
+             Uses conn["serverName"] as the server to look up.
+
+    Returns:
+        The WebId string for the named PI Data Server.
+
+    Notes:
+        - Throws if no server with the given name is found.
+*/
+ns:DataServerIdRequest = function({conn},
+	{DEFAULT LOCAL},
+	params = associativeArray();
+    params["name"] = conn["serverName"];
+	params["selectedFields"] = "WebId";
+	// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/dataserver/actions/getbyname.html
+    result = ns:GetRequest(conn, "dataservers", params);
+	if(!contains(result, "WebId"),
+		throw("No data server found with name '"||params["name"] ||"'.")
+	);
+	return(result["WebId"])
+);
+
+/* 
+    Function: PointRequest
+        ---Prototype---
+        ns:PointRequest( AssociativeArray conn, String dataServerID, List searchStringsTag, List searchStringsDesc, String matchType )
+        ---------------
+        Searches for PI Points on a specified PI Data Server using tag name
+        and description search strings, returning matching point Web IDs
+        and names.
+
+    Arguments:
+        conn - A connection associative array created by <MakeConnection>.
+        dataServerID - Web ID of the PI Data Server to search.
+        searchStringsTag - A list of strings containing the tag-name search terms.
+        searchStringsDesc - A list of strings containing the description search terms.
+        matchType - Defines how the search strings are matched. Must be one of
+            "Pattern", "Starts with", "Ends with", or "Contains".
+
+    Behavior:
+        Builds a PI Web API point search query from the provided search strings,
+        applying wildcards based on the selected matchType. The query is executed
+        in batches using the PI Web API until either all matching points are
+        retrieved or conn["maxRows"] is reached.
+
+        The function combines all individual search criteria using logical OR
+        and pages through results using the API's startIndex parameter.
+
+    Returns:
+        pointIDs - A list of Web IDs for the matching PI Points.
+        pointNames - A list of names for the matching PI Points.
+
+    Note:
+        This function relies on the PI Web API Point Search endpoint and
+        is subject to API limits such as maximum page size and request limits.
+*/
+ns:PointRequest = Function({conn, dataServerID, searchStringsTag, searchStringsDesc, matchType},
+	{DEFAULT LOCAL},
+	if(!(Type(searchStringsTag) == "List"), Throw("tag search field must be a list of strings, (was " || Type(searchStringsTag) || ")"));
+	if(!(Type(searchStringsDesc) == "List"), Throw("description search field must be a list of strings, (was " || Type(searchStringsDesc) || ")"));
+	if(!(length(searchStringsTag) == length(searchStringsDesc)),
+		throw("tag and desc search lists must be the same length")
+	);
+	if(!contains({"Pattern", "Starts with", "Ends with", "Contains"}, matchType),
+		throw("'matchType' must be one of \!"Pattern\!", \!"Starts with\!", \!"Ends with\!" or \!"Contains\!" in 'ns:PointRequest'.")
+	);
+
+	buildSearchFragment = function({ss, matchType, desc},
+		if(!(Type(ss) == "String"), Throw("Search field must be a list of strings, (one value was a " || Type(ss) || ")"));
+		if(ss == "",
+			"", 
+			match(matchType,
+				"Starts with", sswc = desc || ":=\!"" || ss || "*" || "\!"",
+				"Ends with", sswc = desc || ":\!"" || "*" || ss || "\!"",
+				"Contains", sswc = desc || ":\!"" || "*" || ss || "*" || "\!"",
+				sswc = desc || ":\!"" ||ss || "\!""
+			);
+		);
+	);
+
+	// Add wildcards to searchString fragment depending on matchType	
+	sfTag = Transform Each({ss}, searchStringsTag, buildSearchFragment(ss, matchType, "tag" ));
+	sfDesc = Transform Each({ss}, searchStringsDesc, buildSearchFragment(ss, matchType, "descriptor" ));
+	//put lists into a list with a item for each row that contains lists for each search field
+	Eval( Eval Expr(
+		sfList = ns:ziplists({ expr(sfTag),expr(sfDesc)}, "lists")
+	) );
+	sfListFiltered = Transform each({sf}, sfList, 
+		Filter Each({sfp}, sf, length(sfp)>0)
+	);
+	sfListFiltered = Filter each({sfp}, sfListFiltered, n items(sfp)>0);
+	sfListPartstoJoin = Transform Each({sf}, sfListFiltered, "" || concat items(sf, " AND ") || "";);
+	
+	searchQuery = "(" || concat items(sfListPartstoJoin, ") OR (") || ")";
+	params = associativeArray();
+	params["dataServerWebId"] = dataServerID;
+	params["query"] = searchQuery;
+	params["maxCount"] = conn["maxCount"];
+	params["startIndex"] = 0;
+	pointIDs = {};
+	pointNames = {};
+	While(1,
+		// Repeat this query in batches of ns:maxCount number of points
+		// https://docs.osisoft.com/bundle/pi-web-api-reference/page/help/controllers/point/actions/getpointsbysearch.html
+        result = ns:GetRequest(conn, "points/search", params);
+
+		items = result["Items"];
+		for(i=1, i<=nItems(items), i++,
+			insertInto(pointIDs, items[i]["WebId"]);
+			insertInto(pointNames, items[i]["Name"]);
+		);
+
+		// Break if there are fewer points than the maximum allowed by the API or if the user's limit is reached
+        if(nItems(items) < conn["maxCount"] | nItems(pointIDs) >= conn["maxRows"],
+			break()
+		);
+		// Start the next query at the next index
+        params["startIndex"] += conn["maxCount"];
+	);
+
+	if(!nItems(pointIDs), throw("No matching PI points were found"));
+
+	return(pointIDs, pointNames)
+);

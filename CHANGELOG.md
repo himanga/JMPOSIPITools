@@ -1,17 +1,18 @@
 # Changelog
-
-All notable changes to this project will be documented in this file.
+Notable changes to this project are documented here.
 
 ## [HEAD]
 
 ### Added
-- 
+- Settings are saved to the output table and they can be recalled.
 
 ### Changed
-- 
+- Behind the scenes: refactored code into smaller files
+- Behind the scenes: all query functions take inputs from parameters
 
 ### Fixed
-- 
+- Render README and CHANGELOG during build for cleaner view in the add-in
+- JMP LivebBugs from earlier changes this release
 
 ## [0.1303]
 

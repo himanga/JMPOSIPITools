@@ -1,0 +1,418 @@
+// Set textbox with JSL
+UpdateOutput = function( {},
+
+	if( DisableUpdate == 1, return());
+	
+	inputs = CollectQueryInputs();
+
+	three_rb = rb_tblformat << Get selected;
+	if (three_rb == "Long",
+		TableFormat = "Long";,
+		three_rb == "Wide",
+		TableFormat = "Wide";,
+		TableFormat = "Long";
+	);
+
+	querytype = inputs["querytype"];
+	calctype = rb_calctype << Get Selected;
+	
+	//Show or hide time options
+	if( querytype == "Point Info",
+		lb_querytimes << Visibility("collapse");
+		lb_CalcBasis << Visibility("collapse");
+		lb_intervaltime << Visibility("collapse");
+		lb_steptime << Visibility("collapse");
+		lb_matchtype << Visibility("visible");
+		rb_tblformat << Set( 1 );
+		lb_longwide << Visibility("collapse");
+	,
+	
+		querytype == "Snapshot Values",
+		lb_querytimes << Visibility("collapse");
+		lb_CalcBasis << Visibility("collapse");
+		lb_intervaltime << Visibility("collapse");
+		lb_steptime << Visibility("collapse");
+		lb_matchtype << Visibility("visible");
+		rb_tblformat << Set( 1 );
+		lb_longwide << Visibility("collapse");
+	,
+		
+		querytype == "All Archived Values",
+		lb_querytimes << Visibility("visible");
+		lb_CalcBasis << Visibility("collapse");
+		lb_intervaltime << Visibility("collapse");
+		lb_steptime << Visibility("collapse");
+		lb_matchtype << Visibility("visible");
+		lb_longwide << Visibility("visible");
+	,
+		
+		querytype == "Interpolated Values",
+		lb_querytimes << Visibility("visible");
+		lb_intervaltime << Visibility("visible");
+		lb_steptime << Visibility("collapse");
+		lb_CalcBasis << Visibility("collapse");
+		lb_matchtype << Visibility("visible");
+		lb_longwide << Visibility("visible");
+	,
+	
+		//else
+		lb_querytimes << Visibility("visible");
+		lb_intervaltime << Visibility("visible");
+		// Separate step time only allowed for TimeWeighted basis
+		if(calctype == "TimeWeighted",
+			lb_steptime << Visibility("visible")
+		,
+			TimeStep << Set Text (TimeInterval << Get Text);
+			lb_steptime << Visibility("collapse")
+		);
+		lb_CalcBasis << Visibility("visible");
+		lb_matchtype << Visibility("visible");
+		lb_longwide << Visibility("visible");
+	);
+	
+	//make sure points table is still open
+	if(!(Type(dtPoints)=="Table"), Throw("Unable to access the points data table - was it closed?  Try restarting the add-in.") );
+	try(colnames = dtPoints << get column names("string");, Throw("Unable to access the points data table - was it closed?  Try restarting the add-in."));
+	if(length(loc(colnames, "Tag Search"))<1, Throw("Unable to find column 'Tag Search', was it deleted or renamed?"));
+	if(length(loc(colnames, "Desc Search"))<1, Throw("Unable to find column 'Desc Search', was it deleted or renamed?"));
+	if(length(loc(colnames, "Friendly Name"))<1, Throw("Unable to find column 'Friendly Name', was it deleted or renamed?"));
+	
+	//show or hide fields to return different columns
+	if( (!(querytype == "Interpolated Values" | querytype == "All Archived Values") | (inputs["TableFormat"] != "Wide")) == 1,
+		vlb_pickfields << Visibility("Collapse");
+		try(dtPoints:Return value << Hide(1));
+		try(dtPoints:Return svalue << Hide(1));
+		try(dtPoints:Return status << Hide(1));
+	,
+		if(length(loc(colnames, "Return value"))<1, Throw("Unable to find column 'Return value', was it deleted or renamed?"));
+		if(length(loc(colnames, "Return svalue"))<1, Throw("Unable to find column 'Return svalue', was it deleted or renamed?"));
+		if(length(loc(colnames, "Return status"))<1, Throw("Unable to find column 'Return status', was it deleted or renamed?"));
+		vlb_pickfields << Visibility("Visible");
+		dtPoints:Return value << Hide(0);
+		dtPoints:Return svalue << Hide(0);
+		dtPoints:Return status << Hide(0);
+	);
+
+	//If step and interval times are linked, update the interval time
+	If( ( SeparateInterval << Get ) == 1,
+		lb_steptimesub << Visibility("Visible");
+	,
+		lb_steptimesub << Visibility("Collapse");
+		TimeStep << Set Text( TimeInterval  << Get Text );
+	);
+	
+	//Set script to fill in default fields in table
+	Eval( Eval Expr(
+		dtPoints << Subscribe(  "setnewrowdefaults", 
+			OnAddRows( function( {tbl, nrowsadded, firstnewrow}, 
+				newrows = index(firstnewrow+1,firstnewrow+nrowsadded,1);
+				dtPoints:Return value[newrows] = Expr( if( cb_returnvaluedefault << get, "Yes", "No" ) );
+				dtPoints:Return svalue[newrows] = Expr( if( cb_returnsvaluedefault << get, "Yes", "No" ) );
+				dtPoints:Return status[newrows] = Expr( if( cb_returnstatusdefault << get, "Yes", "No" ) );
+			) )
+		)
+	) );
+	
+
+	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
+	inputsDesktop = inputs;
+	inputsDesktop["live"] = 0;
+	JMPJSLout << set text( Char( BuildJMPJSL( inputsDesktop ) ) );
+	wasJMPOpen = obJMPJSLScript << GetOpen;
+	obJMPJSLScript << setopen(1);
+	JMPJSLout << Reformat;
+	obJMPJSLScript << setopen(wasJMPOpen);
+
+	// JMP Live Script
+	inputsLive = inputs;
+	inputsLive["live"] = 1;
+	LiveJSLout << set text( Char( BuildJMPJSL( inputsLive ) ) );
+	wasLiveOpen = obLiveJSLScript << GetOpen;
+	obLiveJSLScript << SetOpen(1);
+	LiveJSLout << Reformat;
+	obLiveJSLScript << setopen(wasLiveOpen);
+	
+);
+
+/*
+    Function: CollectQueryInputs
+        ---Prototype---
+        CollectQueryInputs()
+        --------------------
+        Reads all user-facing UI widget state and returns it as an
+        associative array. This is the single point where UI state is
+        read for the purpose of script generation and settings
+        save/recall.
+
+    Returns:
+        An associative array containing all query settings keyed by
+        name. Raw values only - no derived logic.
+
+    Notes:
+        - This function reads live UI widget state and is not pure.
+        - Its mirror is <ApplyQueryInputs>.
+*/
+CollectQueryInputs = function( {},
+	{DEFAULT LOCAL},
+	s = Associative Array();
+
+	// Connection
+	s["serverName"]        = tb_server     << GetText;
+	s["baseURL"]           = tb_BaseURL    << GetText;
+	s["maxRows"]           = num( tb_maxrows << GetText );
+
+	// Query shape
+	s["querytype"]         = cb_querytypes << Get Selected;
+	s["cnformat"]          = cb_cnformat   << Get Selected;
+	s["matchType"]         = rb_matchtype  << Get Selected;
+	s["calculationBasis"]  = rb_calctype   << GetSelected;
+	s["TableFormat"]       = rb_tblformat  << getSelected;
+
+	// Time range
+	s["startTime"]         = TimeStart     << GetText;
+	s["endTime"]           = TimeEnd       << GetText;
+	s["intervalTime"]      = TimeInterval  << GetText;
+	s["separateInterval"]  = SeparateInterval << Get(1);
+	s["stepTime"]          = If( SeparateInterval << Get(1) == 0,
+	                             TimeInterval << GetText,
+	                             TimeStep     << GetText );
+
+	// Output options
+	s["tableName"]         = tb_tablename  << GetText;
+	s["hideprefix"]        = cb_hideprefix << Get;
+	s["tagToNotes"]        = cb_tagtonotes << Get;
+
+	// Tag table
+	s["TagSearchStrings"]  = dtPoints:"Tag Search"    << Get Values;
+	s["DescSearchStrings"] = dtPoints:"Desc Search"   << Get Values;
+	s["friendlyNames"]     = dtPoints:"Friendly Name" << Get Values;
+	s["returnValue"]       = dtPoints:"Return value"  << Get Values;
+	s["returnSvalue"]      = dtPoints:"Return svalue" << Get Values;
+	s["returnStatus"]      = dtPoints:"Return status" << Get Values;
+
+	// Add-in metadata at time of collection
+	s["addinId"]        = ns:metadata_aa["id"];
+	s["addinVersion"]   = ns:metadata_aa["addinVersion"];
+	s["addinState"]     = ns:metadata_aa["state"];
+	s["addinBuildDate"] = ns:metadata_aa["buildDate"];
+	
+	//get user preference to allow insecure
+	s["allowInsecure"] = ns:UserPref["Allow_Insecure_Connections"];
+
+	return( s )
+);
+
+/*
+    Function: ApplyQueryInputs
+        ---Prototype---
+        ApplyQueryInputs( AssociativeArray inputs )
+        -------------------------------------------
+        Applies a query inputs associative array (as produced by
+        <CollectQueryInputs>) back to the UI widgets. Used to restore
+        a previous set of query settings.
+
+    Parameters:
+    - inputs - An associative array as returned by <CollectQueryInputs>.
+
+    Notes:
+        - Callers should wrap this in DisableUpdate = 1 / 0 guards and
+          call UpdateOutput() afterwards.
+        - This function is the mirror of <CollectQueryInputs>.
+*/
+ApplyQueryInputs = function( {inputs},
+	// Connection
+	tb_server     << Set Text( inputs["serverName"] );
+	tb_BaseURL    << Set Text( inputs["baseURL"] );
+	tb_maxrows    << Set Text( Char( inputs["maxRows"] ) );
+
+	// Query shape
+	cb_querytypes << Set( Loc( cb_querytypes << Get Items, inputs["querytype"] ) );
+	cb_cnformat   << Set( Loc( cb_cnformat << Get Items, inputs["cnformat"] ) );
+	rb_matchtype   << Set( Loc( rb_matchtype << Get Items, inputs["matchType"] ) );
+	rb_calctype   << Set( Loc( rb_calctype << Get Items, inputs["calculationBasis"] ) );
+	rb_tblformat   << Set( Loc( rb_tblformat << Get Items, inputs["TableFormat"] ) );
+
+	// Time range
+	TimeStart         << Set Text( inputs["startTime"] );
+	TimeEnd           << Set Text( inputs["endTime"] );
+	TimeInterval      << Set Text( inputs["intervalTime"] );
+	SeparateInterval  << Set All( inputs["separateInterval"] );
+	TimeStep          << Set Text( inputs["stepTime"] );
+
+	// Output options
+	tb_tablename  << Set Text( inputs["tableName"] );
+	cb_hideprefix << Set( Loc( cb_hideprefix << Get Items, inputs["hideprefix"] ) );
+	cb_tagtonotes << Set( Loc( cb_tagtonotes << Get Items, inputs["tagToNotes"] ) );
+
+	// Tag table
+	nrows = N Items( inputs["TagSearchStrings"] );
+	dtPoints << Select Where(1);
+	dtPoints << Delete Rows;
+	dtPoints << Add Rows( nrows );
+	dtPoints:"Tag Search"    << Set Values( inputs["TagSearchStrings"] );
+	dtPoints:"Desc Search"   << Set Values( inputs["DescSearchStrings"] );
+	dtPoints:"Friendly Name" << Set Values( inputs["friendlyNames"] );
+	dtPoints:"Return value"  << Set Values( inputs["returnValue"] );
+	dtPoints:"Return svalue" << Set Values( inputs["returnSvalue"] );
+	dtPoints:"Return status" << Set Values( inputs["returnStatus"] );
+);
+/*
+    Function: LoadSettingsFromTable
+        ---Prototype---
+        LoadSettingsFromTable( Table dt )
+        ---------------------------------
+        Reads saved query settings from a data table property and
+        applies them to the UI via <ApplyQueryInputs>.
+
+    Parameters:
+    - dt - A data table previously produced by a Run query call.
+
+    Notes:
+        - Throws if the table has no saved PI Query Settings property.
+        - Version compatibility check extension point is in
+          <ApplyQueryInputs>.
+        - Caller is responsible for calling UpdateOutput() afterwards.
+*/
+LoadSettingsFromTable = function( {dt},
+    {DEFAULT LOCAL},
+    savedInputs = dt << Get Table Property( "PI Query Settings" );
+    If( savedInputs == "",
+        Throw( "No saved PI Query Settings found in this table." )
+    );
+    DisableUpdate = 1;
+    Try(
+        ApplyQueryInputs( savedInputs );
+        DisableUpdate = 0;
+    ,
+        DisableUpdate = 0;
+        Throw( exception_msg );
+    );
+);
+
+//Set default Table format
+DefaultTableFormat = function( {},
+	querytype = cb_querytypes << Get Selected;
+	
+	//Show or hide time options
+	if( querytype == "Point Info" |
+		querytype == "Snapshot Values" |
+		querytype == "All Archived Values" |
+		querytype == "Calculated Expression",
+		rb_tblformat << Set( 1 ),
+		
+		lb_querytimes << Visibility("visible");
+		rb_tblformat << Set( 2 );
+	);
+	
+);
+
+
+// Example Queries to load
+exQueries = {
+	{
+		"Find PI Tags",
+		"Find PI tags matching a name.",
+		{
+			cb_querytypes << Set( 1 ),
+			rb_matchtype << Set( 4 ),
+			rb_tblformat << Set( 1 ),
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
+		}
+	},
+	{
+		"Find PI Tags by Description",
+		"Find PI tags matching a description.",
+		{
+			cb_querytypes << Set( 1 ),
+			rb_matchtype << Set( 4 ),
+			rb_tblformat << Set( 1 ),
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"" } ),
+			dtPoints:Desc Search << Set Values( {"sinusoid" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
+		}
+	},
+	{
+		"Interpolated Values",
+		"Return evenly-spaced values for a tag.",
+		{
+			cb_querytypes << Set( 4 ),		//Interpolated Values
+			TimeStart << Set Text( "t - 2d" ),
+			TimeEnd << Set Text( "*" ),
+			TimeInterval << Set Text( "1h" ),
+			SeparateInterval << Set( 0 ),
+			TimeStep << Set Text( "1h" ),
+			//rb_calctype << Set( 1 )
+			rb_matchtype << Set( 1 ),		//exact
+			rb_tblformat << Set( 2 ),		//wide
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints << Add Rows(10),
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
+		}
+	},
+	{
+		"Average Value",
+		"Return daily average values",
+		{
+			cb_querytypes << Set( 5 ),
+			TimeStart << Set Text( "t - 10d + 6h" ),
+			TimeEnd << Set Text( "t + 6h" ),
+			TimeInterval << Set Text( "24h" ),
+			SeparateInterval << Set( 0 ),
+			TimeStep << Set Text( "24h" ),
+			//rb_calctype << Set( 1 )
+			rb_matchtype << Set( 1 ),		//exact
+			rb_tblformat << Set( 2 ),		//wide
+			dtPoints << Select Where(1),
+			dtPoints << Delete Rows,
+			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
+			dtPoints:Desc Search << Set Values( {"" } ),
+			dtPoints:Friendly Name << Set Values( {"" } ),
+			dtPoints:Return value << Set Values( {"Yes" } ),
+			dtPoints:Return svalue << Set Values( {"No" } ),
+			dtPoints:Return status << Set Values( {"No" } )
+		}
+	}
+};
+
+LoadDefault = function( {defname},
+	Try(
+		DisableUpdate = 1;
+		For Each( {x}, exQueries, 
+			if(x[1] == defname,
+				For Each( {y}, x[3], Eval(y) )
+			)
+		);
+		
+		DisableUpdate = 0;
+	);
+	DisableUpdate = 0;
+);
+
+PresetTimes = {
+	{"Custom", 						Empty(), 		Empty(), 	Empty(),Empty(), Empty()},
+	{"Hourly Yesterday, 12 am", 	"y",			"t", 		"1h", 	0, 		"1h"},
+	{"Hourly Yesterday, 6 am" , 	"y+6h",			"t+6h", 	"1h", 	0, 		"1h"},
+	{"Hourly Yesterday, 7 am" , 	"y+7h",			"t+7h", 	"1h", 	0, 		"1h"},
+	{"Daily Last Year", 			"01/01-1y",		"01/01",	"1d", 	0, 		"1h"},
+	{"1 hr moving average", 		"y",			"t",		"1h", 	1, 		"10m"}
+};

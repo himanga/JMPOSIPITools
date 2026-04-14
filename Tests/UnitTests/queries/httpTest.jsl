@@ -1,0 +1,42 @@
+ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+httpTestCase = ut test case( "httpTest" )
+    << Setup( Expr(
+        conn = ns:MakeConnection(
+            ns:UserPref["Base_Url"],
+            ns:UserPref["PI_Server"],
+            0,  //live
+            num( ns:UserPref["Max_Rows"] ),
+            "no" //allow insecure
+        );
+    ));
+
+ut test( httpTestCase, "FetchUtcHeader", Expr(
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader( conn ) ),
+        ut typed as( "Date" ),
+        "returns a date"
+    );
+
+    ut assert that(
+        Expr(
+            ns:FetchUtcHeader( conn ) - in hours(1)
+        ),
+        ut typed as( "Number" ),
+        "Can do calcs with this date"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader( conn ) <= Today() + InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the future"
+    );
+
+    ut assert that(
+        Expr( ns:FetchUtcHeader( conn ) >= Today() - InHours( 24 ) ),
+        ut equal to( 1 ),
+        "Returned date is not way in the past"
+    );
+
+));
