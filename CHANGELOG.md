@@ -8,9 +8,11 @@ Notable changes to this project are documented here.
 
 ### Changed
 - Behind the scenes: refactored code into smaller files
+- Behind the scenes: all query functions take inputs from parameters
 
 ### Fixed
 - Render README and CHANGELOG during build for cleaner view in the add-in
+- JMP LivebBugs from earlier changes this release
 
 ## [0.1303]
 

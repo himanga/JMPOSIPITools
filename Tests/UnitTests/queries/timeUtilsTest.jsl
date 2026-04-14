@@ -90,8 +90,9 @@ timeUtilsTestCase = ut test case( "timeUtils" )
         conn = ns:MakeConnection(
             ns:UserPref["Base_Url"],
             ns:UserPref["PI_Server"],
-            0,
-            num( ns:UserPref["Max_Rows"] )
+            0,  //live
+            num( ns:UserPref["Max_Rows"] ),
+            "no" //allow insecure
         );
     ));
 

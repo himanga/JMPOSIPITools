@@ -1,4 +1,4 @@
-ns:MakeConnection = function( {baseURL, serverName, live, maxRows},
+ns:MakeConnection = function( {baseURL, serverName, live, maxRows, allowInsecure},
     {conn},
     conn = Associative Array();
     conn["baseURL"]     = baseURL;
@@ -6,6 +6,7 @@ ns:MakeConnection = function( {baseURL, serverName, live, maxRows},
     conn["live"]        = live;
     conn["maxRows"]     = maxRows;
     conn["maxCount"]    = Minimum( maxRows, ns:APIRowLimit );
+    conn["allowInsecure"] = allowInsecure;
     return( conn )
 );
 // Sends a GET request to the endpoint with the specified parameters
@@ -34,7 +35,7 @@ ns:GetRequest = Function( {conn, endpoint, queryParameters},
         ) );
     );
 
-	if( Lowercase(ns:UserPref["Allow_Insecure_Connections"]) == "yes",
+	if( Lowercase(conn["allowInsecure"]) == "yes",
 		Insert Into(request, Expr(Secure(0)));
     );
     request = Eval( request );
@@ -96,7 +97,7 @@ ns:FetchUtcHeader = function( {conn},
         );
 
     If(
-        Lowercase( ns:UserPref["Allow_Insecure_Connections"] ) == "yes",
+        Lowercase( conn["allowInsecure"] ) == "yes",
         Insert Into( requestExpr, Expr( Secure( 0 ) ) )
     );
 

@@ -76,8 +76,9 @@ ns:CheckConnectionsinUserPref = function({}, {DEFAULT LOCAL},
 		conn = ns:MakeConnection(
 			dtConnections:URL[i],
 			dtConnections:Server[i],
-			ns:live,
-			num(ns:UserPref["Max_Rows"])
+			0, //live
+			num(ns:UserPref["Max_Rows"]),
+    		ns:UserPref["Allow_Insecure_Connections"]
 		);
 		try(
 			dtConnections:TimeServer[i] = ns:FetchUtcHeader(conn);

@@ -3,6 +3,8 @@ UpdateOutput = function( {},
 
 	if( DisableUpdate == 1, return());
 	
+	inputs = CollectQueryInputs();
+
 	three_rb = rb_tblformat << Get selected;
 	if (three_rb == "Long",
 		TableFormat = "Long";,
@@ -11,7 +13,7 @@ UpdateOutput = function( {},
 		TableFormat = "Long";
 	);
 
-	querytype = cb_querytypes << Get Selected;
+	querytype = inputs["querytype"];
 	calctype = rb_calctype << Get Selected;
 	
 	//Show or hide time options
@@ -76,7 +78,7 @@ UpdateOutput = function( {},
 	if(length(loc(colnames, "Friendly Name"))<1, Throw("Unable to find column 'Friendly Name', was it deleted or renamed?"));
 	
 	//show or hide fields to return different columns
-	if( (!(querytype == "Interpolated Values" | querytype == "All Archived Values") | (TableFormat != "Wide")) == 1,
+	if( (!(querytype == "Interpolated Values" | querytype == "All Archived Values") | (inputs["TableFormat"] != "Wide")) == 1,
 		vlb_pickfields << Visibility("Collapse");
 		try(dtPoints:Return value << Hide(1));
 		try(dtPoints:Return svalue << Hide(1));
@@ -111,22 +113,147 @@ UpdateOutput = function( {},
 		)
 	) );
 	
-	
+
 	// Open the outline box before reformatting or the JSL gets formatted for very narrow script box
 	// JMP Script
-	JMPJSLout << set text( Char(BuildJMPJSL()));
+	inputs["live"] = 0;
+	JMPJSLout << set text( Char(BuildJMPJSL(inputs)));
 	wasJMPOpen = obJMPJSLScript << GetOpen;
 	obJMPJSLScript << setopen(1);
 	JMPJSLout << Reformat;
 	obJMPJSLScript << setopen(wasJMPOpen);
 
 	// JMP Live Script
-	LiveJSLout << set text( Char(BuildJMPJSL(live=1)));
+	inputs["live"] = 1;
+	LiveJSLout << set text( Char(BuildJMPJSL(inputs)));
 	wasLiveOpen = obLiveJSLScript << GetOpen;
 	obLiveJSLScript << SetOpen(1);
 	LiveJSLout << Reformat;
 	obLiveJSLScript << setopen(wasLiveOpen);
 	
+);
+
+/*
+    Function: CollectQueryInputs
+        ---Prototype---
+        CollectQueryInputs()
+        --------------------
+        Reads all user-facing UI widget state and returns it as an
+        associative array. This is the single point where UI state is
+        read for the purpose of script generation and settings
+        save/recall.
+
+    Returns:
+        An associative array containing all query settings keyed by
+        name. Raw values only - no derived logic.
+
+    Notes:
+        - This function reads live UI widget state and is not pure.
+        - Its mirror is <ApplyQueryInputs>.
+*/
+CollectQueryInputs = function( {},
+	{DEFAULT LOCAL},
+	s = Associative Array();
+
+	// Connection
+	s["serverName"]        = tb_server     << GetText;
+	s["baseURL"]           = tb_BaseURL    << GetText;
+	s["maxRows"]           = num( tb_maxrows << GetText );
+
+	// Query shape
+	s["querytype"]         = cb_querytypes << Get Selected;
+	s["cnformat"]          = cb_cnformat   << Get Selected;
+	s["matchType"]         = rb_matchtype  << Get Selected;
+	s["calculationBasis"]  = rb_calctype   << GetSelected;
+	s["TableFormat"]       = rb_tblformat  << getSelected;
+
+	// Time range
+	s["startTime"]         = TimeStart     << GetText;
+	s["endTime"]           = TimeEnd       << GetText;
+	s["intervalTime"]      = TimeInterval  << GetText;
+	s["separateInterval"]  = SeparateInterval << Get(1);
+	s["stepTime"]          = If( SeparateInterval << Get(1) == 0,
+	                             TimeInterval << GetText,
+	                             TimeStep     << GetText );
+
+	// Output options
+	s["tableName"]         = tb_tablename  << GetText;
+	s["hideprefix"]        = cb_hideprefix << Get;
+	s["tagToNotes"]        = cb_tagtonotes << Get;
+
+	// Tag table
+	s["TagSearchStrings"]  = dtPoints:"Tag Search"    << Get Values;
+	s["DescSearchStrings"] = dtPoints:"Desc Search"   << Get Values;
+	s["friendlyNames"]     = dtPoints:"Friendly Name" << Get Values;
+	s["returnValue"]       = dtPoints:"Return value"  << Get Values;
+	s["returnSvalue"]      = dtPoints:"Return svalue" << Get Values;
+	s["returnStatus"]      = dtPoints:"Return status" << Get Values;
+
+	// Add-in metadata at time of collection
+	s["addinId"]        = ns:metadata_aa["id"];
+	s["addinVersion"]   = ns:metadata_aa["addinVersion"];
+	s["addinState"]     = ns:metadata_aa["state"];
+	s["addinBuildDate"] = ns:metadata_aa["buildDate"];
+	
+	//get user preference to allow insecure
+	s["allowInsecure"] = ns:UserPref["Allow_Insecure_Connections"];
+
+	return( s )
+);
+
+/*
+    Function: ApplyQueryInputs
+        ---Prototype---
+        ApplyQueryInputs( AssociativeArray inputs )
+        -------------------------------------------
+        Applies a query inputs associative array (as produced by
+        <CollectQueryInputs>) back to the UI widgets. Used to restore
+        a previous set of query settings.
+
+    Parameters:
+    - inputs - An associative array as returned by <CollectQueryInputs>.
+
+    Notes:
+        - Callers should wrap this in DisableUpdate = 1 / 0 guards and
+          call UpdateOutput() afterwards.
+        - This function is the mirror of <CollectQueryInputs>.
+*/
+ApplyQueryInputs = function( {inputs},
+	// Connection
+	tb_server     << Set Text( inputs["serverName"] );
+	tb_BaseURL    << Set Text( inputs["baseURL"] );
+	tb_maxrows    << Set Text( Char( inputs["maxRows"] ) );
+
+	// Query shape
+	cb_querytypes << Set Selected( inputs["querytype"] );
+	cb_cnformat   << Set Selected( inputs["cnformat"] );
+	rb_matchtype  << Set Selected( inputs["matchType"] );
+	rb_calctype   << Set Selected( inputs["calculationBasis"] );
+	rb_tblformat  << Set Selected( inputs["TableFormat"] );
+
+	// Time range
+	TimeStart         << Set Text( inputs["startTime"] );
+	TimeEnd           << Set Text( inputs["endTime"] );
+	TimeInterval      << Set Text( inputs["intervalTime"] );
+	SeparateInterval  << Set All( inputs["separateInterval"] );
+	TimeStep          << Set Text( inputs["stepTime"] );
+
+	// Output options
+	tb_tablename  << Set Text( inputs["tableName"] );
+	cb_hideprefix << Set( inputs["hideprefix"] );
+	cb_tagtonotes << Set( inputs["tagToNotes"], 1 );
+
+	// Tag table
+	nrows = N Items( inputs["TagSearchStrings"] );
+	dtPoints << Select Where(1);
+	dtPoints << Delete Rows;
+	dtPoints << Add Rows( nrows );
+	dtPoints:"Tag Search"    << Set Values( inputs["TagSearchStrings"] );
+	dtPoints:"Desc Search"   << Set Values( inputs["DescSearchStrings"] );
+	dtPoints:"Friendly Name" << Set Values( inputs["friendlyNames"] );
+	dtPoints:"Return value"  << Set Values( inputs["returnValue"] );
+	dtPoints:"Return svalue" << Set Values( inputs["returnSvalue"] );
+	dtPoints:"Return status" << Set Values( inputs["returnStatus"] );
 );
 
 //Set default Table format

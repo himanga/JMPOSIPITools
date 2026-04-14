@@ -1,34 +1,31 @@
 //Create JMP JSL script from options on the form.
-BuildJMPJSL = function( {live=0}, {txt},
+BuildJMPJSL = function( {inputs}, {txt},
 
-	// Get inputs
-	serverName = tb_server << GetText;
-	querytype = cb_querytypes << Get Selected;
-	cnformat = cb_cnformat << Get Selected;
-	matchType = rb_matchtype << Get Selected;
-	TagSearchStrings = (dtPoints:Tag Search << Get Values);
-	DescSearchStrings = (dtPoints:Desc Search << Get Values);
-	calculationBasis = rb_calctype << GetSelected;
-	startTime = TimeStart << GetText;
-	endTime = TimeEnd << GetText;
-	intervalTime = TimeInterval << GetText;
-	tableName = tb_tablename << GetText;
-	hideprefix = cb_hideprefix << Get;
-	baseURL = tb_BaseURL << GetText;
-	maxRows = num( tb_maxrows << GetText );
-	If(SeparateInterval << Get(1) == 0,
-		// Use the interval as the time step if there is no separate interval
-		stepTime = intervalTime
-	,
-		stepTime = TimeStep << GetText
-	);
-	TableFormat = rb_tblformat << getSelected;
+	// Unpack inputs struct
+	serverName       = inputs["serverName"];
+	querytype        = inputs["querytype"];
+	cnformat         = inputs["cnformat"];
+	matchType        = inputs["matchType"];
+	TagSearchStrings = inputs["TagSearchStrings"];
+	DescSearchStrings= inputs["DescSearchStrings"];
+	calculationBasis = inputs["calculationBasis"];
+	startTime        = inputs["startTime"];
+	endTime          = inputs["endTime"];
+	intervalTime     = inputs["intervalTime"];
+	tableName        = inputs["tableName"];
+	hideprefix       = inputs["hideprefix"];
+	baseURL          = inputs["baseURL"];
+	maxRows          = inputs["maxRows"];
+	stepTime         = inputs["stepTime"];
+	TableFormat      = inputs["TableFormat"];
+	live             = inputs["live"];
+	allowInsecure    = inputs["allowInsecure"];
 	
-	ismissingcn = Transform Each({v, i}, dtPoints:TagSearch << Get Values, Output("Matrix"), is missing(v) );
+	ismissingcn = Transform Each({v, i}, inputs["TagSearchStrings"], Output("Matrix"), is missing(v) );
 	
 	//Set new column names from friendly names depending which the user picked.
-	oldcn = (dtPoints:Tag Search << Get Values)[Loc(!ismissingcn)];
-	friendlycn = (dtPoints:Friendly Name << Get Values)[Loc(!ismissingcn)];
+	oldcn = inputs["TagSearchStrings"][Loc(!ismissingcn)];
+	friendlycn = inputs["friendlyNames"][Loc(!ismissingcn)];
 	friendlycn = Transform Each({thiscn, i}, friendlycn, if(is missing(thiscn), oldcn[i], thiscn));
 	
 	if(
@@ -73,8 +70,8 @@ BuildJMPJSL = function( {live=0}, {txt},
 		// Requires a complete copy of the add in namespace
 		
 		nsliveContents = ns << Get Contents;
-		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
-		//Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
+		Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "UserPref", 1, 0) ), 1 )[1] );
+		Remove From( nsliveContents, Loc( Transform Each( {s, i}, nsliveContents, Output("Matrix"), if( s[1] == "DefaultPref", 1, 0) ), 1 )[1] );
 		nsLiveContentsList = Transform Each({s, i}, nsliveContents,
 			e = Eval Expr( ( Assign( expr( name expr(s[1]) ), expr( name expr(s[2])) ) ) );
 			name expr(e)
@@ -95,35 +92,30 @@ BuildJMPJSL = function( {live=0}, {txt},
 	);
 
 	InsertInto(NewTblExpr, EvalExpr(
-		conn = ns:MakeConnection(
-			expr(baseURL),
-			expr(serverName),
-			expr(live),
-			expr(maxRows)
-		);
 		Note to Users = Expr("\!N**************************************\!N\!N" ||
 		 "End of the generic function definition.\!N\!N" ||
 		 "Start of script to pull this specific data." ||
 		 "\!N\!N**************************************\!N");
-	));
 
-	// Emit serverid lookup into the generated script
-	InsertInto(NewTblExpr,
-		EvalExpr( serverid = ns:DataServerIdRequest(conn) )
-	);
+		//All inputs to the script should go here so the user can easily find them.
 
-	// Clear cached time zone difference in case this server is different than the last one that ran
-	InsertInto(NewTblExpr, Expr(
-		If(
-			Contains( conn, "timeDifference" ),
-			Remove From( conn, Loc(conn << Get Keys, "timeDifference") )
+		conn = ns:MakeConnection(
+			expr(baseURL),
+			expr(serverName),
+			expr(live),
+			expr(maxRows),
+			expr(allowInsecure)
 		);
-	) );
 
-	// Get pointIDs
-	InsertInto(NewTblExpr,
-		evalExpr({pointIDs, pointNames} = ns:PointRequest(conn, serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType)))
-	);
+		// Emit serverid lookup into the generated script
+		serverid = ns:DataServerIdRequest(conn);
+
+		// Whether to rename column for some queries
+		hideprefix = Expr( hideprefix );
+
+		// Get pointIDs
+		{pointIDs, pointNames} = ns:PointRequest(conn, serverid, expr(TagSearchStrings), expr(DescSearchStrings), expr(matchType));
+	) );
 
 	// Call a Table function depending on the query type
 	tableRequestExpr = Match(querytype,
@@ -199,9 +191,9 @@ BuildJMPJSL = function( {live=0}, {txt},
 	If( TableFormat == "Wide",
 	
 		// Capture per-row field return flags from the points table
-		returnValue  = (dtPoints:"Return value"  << Get Values)[Loc(!ismissingcn)];
-		returnSvalue = (dtPoints:"Return svalue" << Get Values)[Loc(!ismissingcn)];
-		returnStatus = (dtPoints:"Return status" << Get Values)[Loc(!ismissingcn)];
+		returnValue  = inputs["returnValue"][Loc(!ismissingcn)];
+		returnSvalue = inputs["returnSvalue"][Loc(!ismissingcn)];
+		returnStatus = inputs["returnStatus"][Loc(!ismissingcn)];
 		
 		// Make wide table
 		InsertInto(NewTblExpr, EvalExpr(
@@ -248,7 +240,7 @@ BuildJMPJSL = function( {live=0}, {txt},
 			//Set name
 			dtWide << setName( Expr( tableName ) );
 		));
-		If(cb_tagtonotes << Get,
+		If(inputs["tagToNotes"],
 			// Save column properties
 			InsertInto(NewTblExpr, EvalExpr(
 				For( i = 1, i <= N Cols( dtWide ), i++,
