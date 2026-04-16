@@ -1,0 +1,198 @@
+﻿/* About: Timezone Data Builder
+
+Downloads the moment-timezone unpacked JSON from GitHub, filters
+transitions to a 10-year window, and writes AddinFiles/tz/tzData.jsl.
+
+Run automatically during a release build via buildTzData.ps1, or
+interactively from the add-in UI via the "Refresh timezone data" button.
+
+Requires internet access. If behind a corporate proxy, configure the
+proxy server and port in JMP under File > Preferences > Internet. Use
+":" as the username for Kerberos/Windows authentication.
+
+Source: https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json
+License: MIT - see README.md for attribution.
+
+Section: Globals
+*/
+
+Names Default To Here( 1 );
+
+// About: Get Namespace
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+If(
+    Namespace Exists( thisAddIn || ".addinnamespace" ),
+    ns = Namespace( thisAddIn || ".addinnamespace" ),
+    Throw( "Add-in namespace is not available." )
+);
+
+// About: Output path ───────────────────────────────────────────────────────────────
+// If tzBuilderOutputPath was set by the calling script (e.g. buildTzData.ps1),
+// use that. Otherwise write to the installed add-in location for interactive use.
+If( !Is Empty( global:tzBuilderOutputPath ),
+    outputPath = global:tzBuilderOutputPath,
+    outputPath = Convert File Path( ns:addinhome || "tz\tzData.jsl" );
+);
+
+/* Constants: Timezone Window
+
+    JMP_UNIX_OFFSET  - Seconds between JMP epoch (1904-01-01) and Unix
+                       epoch (1970-01-01). Value: 2082844800.
+    windowEndMs      - End of the transition window in Unix milliseconds.
+                       Computed as today so the window is always current.
+    windowStartMs    - Start of the transition window in Unix milliseconds.
+                       Computed as 10 years before windowEndMs.
+*/
+JMP_UNIX_OFFSET = 2082844800;
+windowEndMs     = (Today() - JMP_UNIX_OFFSET) * 1000;
+windowStartMs   = windowEndMs - 10 * 365.25 * 24 * 3600 * 1000;
+
+// About: Fetch Data ────────────────────────────────────────────────────────────────
+sourceURL = "https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json";
+
+Write( "Fetching timezone data from GitHub..." );
+
+request = New HTTP Request(
+    URL( sourceURL ),
+    Method( "GET" ),
+    Headers( {"Accept: application/json"} )
+);
+rawResult = request << Send;
+
+If( !(request << Is Success),
+    Throw(
+        "Failed to download timezone data."
+        || "\!NStatus: " || (request << Get Status Message)
+        || "\!NURL: " || sourceURL
+    )
+);
+
+Write( "Parsing JSON..." );
+data  = Parse JSON( rawResult );
+zones = data["zones"];
+
+Write( "Found " || Char( N Items( zones ) ) || " zones." );
+
+/*
+    Function: unixMsToJmp
+        Converts a Unix timestamp in milliseconds to a JMP numeric date.
+*/
+unixMsToJmp = Function( {unixMs},
+    (unixMs / 1000) + JMP_UNIX_OFFSET
+);
+
+/*
+    Function: FilterZoneTransitions
+        Filters a zone's transition list to the 10-year window, keeping
+        one entry before the window start so the offset at window start
+        is always known.
+
+    Returns:
+        An associative array with keys offsets, untils, and abbrs.
+*/
+FilterZoneTransitions = Function( {zone},
+    {DEFAULT LOCAL},
+
+    rawOffsets = zone["offsets"];
+    rawUntils  = zone["untils"];
+    rawAbbrs   = zone["abbrs"];
+    n = N Items( rawOffsets );
+
+    // Find index of last transition before window start
+    lastBeforeWindow = 0;
+    For( i = 1, i <= n, i++,
+        If( Type( rawUntils[i] ) != "Empty" & rawUntils[i] <= windowStartMs,
+            lastBeforeWindow = i
+        )
+    );
+
+    filteredOffsets = {};
+    filteredUntils  = {};
+    filteredAbbrs   = {};
+
+    startIdx = Max( 1, lastBeforeWindow );
+    For( i = startIdx, i <= n, i++,
+        If( Type( rawUntils[i] ) != "Empty" & rawUntils[i] > windowEndMs,
+            // First entry beyond the window — store as open-ended and stop
+            Insert Into( filteredOffsets, rawOffsets[i] );
+            Insert Into( filteredUntils,  . );
+            Insert Into( filteredAbbrs,   rawAbbrs[i] );
+            Break()
+        );
+        Insert Into( filteredOffsets, rawOffsets[i] );
+        Insert Into( filteredAbbrs,   rawAbbrs[i] );
+        If( Type( rawUntils[i] ) == "Empty",
+            Insert Into( filteredUntils, . );
+        ,
+            Insert Into( filteredUntils, unixMsToJmp( rawUntils[i] ) )
+        );
+    );
+
+    result = Associative Array();
+    result["offsets"] = filteredOffsets;
+    result["untils"]  = filteredUntils;
+    result["abbrs"]   = filteredAbbrs;
+    result
+);
+
+// ── Build ns:tzData in memory ─────────────────────────────────────────────────
+Write( "Processing zones..." );
+
+ns:tzData  = Associative Array();
+ns:tzLinks = Associative Array();
+
+nZones = N Items( zones );
+For( zi = 1, zi <= nZones, zi++,
+    zone     = zones[zi];
+    zoneName = zone["name"];
+    filtered = FilterZoneTransitions( zone );
+
+    allOffsets = filtered["offsets"];
+
+    entry = Associative Array();
+    entry["offsets"]   = filtered["offsets"];
+    entry["untils"]    = filtered["untils"];
+    entry["abbrs"]     = filtered["abbrs"];
+    entry["minOffset"] = Min( Matrix( allOffsets ) );
+    entry["maxOffset"] = Max( Matrix( allOffsets ) );
+
+    ns:tzData[zoneName] = entry;
+);
+
+// ── Serialize and write ───────────────────────────────────────────────────────
+Write( "Writing tzData.jsl..." );
+
+generatedDate  = Format( Today(), "yyyy-mm-dd" );
+windowStartStr = Format( unixMsToJmp( windowStartMs ), "yyyy-mm-dd" );
+windowEndStr   = Format( Today(), "yyyy-mm-dd" );
+
+header =
+    "/* About: Timezone Data"
+    || "\!N"
+    || "\!NGenerated timezone transition data derived from the IANA timezone"
+    || "\!Ndatabase via moment-timezone. Do not edit manually - regenerate"
+    || "\!Nusing AddinFiles/tz/tzBuilder.jsl or build/buildTzData.ps1."
+    || "\!N"
+    || "\!NGenerated:        " || generatedDate
+    || "\!NSource:           https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json"
+    || "\!NLicense:          MIT - see README.md for attribution."
+    || "\!N"
+    || "\!NTransition window: " || windowStartStr || " to " || windowEndStr
+    || "\!Noffsets:           minutes behind UTC (positive = west of UTC)"
+    || "\!Nuntils:            JMP numeric dates (seconds since 1904-01-01 UTC), . = current/future"
+    || "\!N"
+    || "\!NSection: Globals"
+    || "\!N*/"
+    || "\!N\!N";
+
+Save Text File(
+    outputPath,
+    header
+        || "ns:tzData  = " || Char( Name Expr( ns:tzData  ) ) || ";" || "\!N\!N"
+        || "// No alias links in unpacked source format." || "\!N"
+        || "ns:tzLinks = " || Char( Name Expr( ns:tzLinks ) ) || ";" || "\!N",
+    Mode( "replace" )
+);
+
+Write( "\!NTimezone data written to: " || outputPath );
+Write( "\!NDone. " || Char( nZones ) || " zones processed." );

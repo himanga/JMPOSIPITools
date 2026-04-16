@@ -54,7 +54,7 @@ canonical order defined in $allSteps regardless of selection order.
 $customSteps = $null
 if ($presetName -eq 'Custom') {
 
-    $allSteps = @('Prepare', 'MakeDir', 'Docs', 'Package', 'Test', 'Cleanup')
+    $allSteps = @('Prepare', 'TzData', 'MakeDir', 'Docs', 'Package', 'Test', 'Cleanup')
     $selected = @{}
     foreach ($step in $allSteps) { $selected[$step] = $true }
 

@@ -25,26 +25,26 @@ Set-Content $tempLoad "Open(`"$addinFullPath`");`nQuit(`"No Save`";);"
 $anyFailures = $false
 $testedVersions = 0
 
-foreach ($jmpExe in $JmpVersionsToTest) {
+foreach ($thisjmpExe in $JmpVersionsToTest) {
 
-    if ([string]::IsNullOrWhiteSpace($jmpExe)) { continue }
-    if (-not (Test-Path $jmpExe)) {
-        Write-Host "Skipping $jmpExe (not found)"
+    if ([string]::IsNullOrWhiteSpace($thisjmpExe)) { continue }
+    if (-not (Test-Path $thisjmpExe)) {
+        Write-Host "Skipping $thisjmpExe (not found)"
         continue
     }
 
     Write-Host "`n====================================="
-    Write-Host "Testing against $jmpExe"
+    Write-Host "Testing against $thisjmpExe"
     Write-Host "====================================="
 
     Write-Output "Opening JMP to load add-in"
-    Start-Process $jmpExe -ArgumentList $tempLoad -Wait -NoNewWindow
+    Start-Process $thisjmpExe -ArgumentList $tempLoad -Wait -NoNewWindow
 
     Write-Output "Opening JMP to run tests"
     $testScript = Join-Path (Get-Location) "Tests/RunTestsStandaloneQuitWhenDone.jsl"
     $resultPath = Join-Path $env:TEMP "temp-unittestoutput.txt"
 
-    Start-Process $jmpExe -ArgumentList $testScript -Wait -NoNewWindow
+    Start-Process $thisjmpExe -ArgumentList $testScript -Wait -NoNewWindow
 
     if (-not (Test-Path $resultPath)) {
         throw "Unit test output was not generated"
@@ -57,7 +57,7 @@ foreach ($jmpExe in $JmpVersionsToTest) {
     )
     $ReportHeader = ($result.ReporterOutput -split '-----', 2)[0]
 
-    Write-Host "`nUNIT TEST RESULTS - $jmpExe"
+    Write-Host "`nUNIT TEST RESULTS - $thisjmpExe"
     Write-Host $ReportFailures
     Write-Host $ReportHeader
 

@@ -13,6 +13,7 @@ build/buildConfig.local.ps1
 AddinFilesTempForBuild/
 build/.last_addin
 temp-loadaddin.jsl
+temp-buildtzdata.jsl
 
 # Any packaged files
 archive/**

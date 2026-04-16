@@ -26,6 +26,7 @@ Include( "queries/dataTables.jsl" );
 Include( "queries/http.jsl" );
 Include( "queries/pointQueries.jsl" );
 Include( "queries/timeUtils.jsl" );
+Include( "tz/tzUtils.jsl" );
 
 // This is the most rows that the web API can return
 ns:APIRowLimit = 150000;

@@ -1,0 +1,303 @@
+/* About: Timezone Utilities
+
+Timezone utility functions for use with tzData.jsl.
+Designed to be reusable across add-ins.
+
+Conventions:
+  - offsets are in minutes, positive = behind UTC (west of UTC)
+    e.g. UTC-5 = 300, UTC+5:30 = -330
+  - untils are JMP numeric dates (seconds since 1904-01-01 UTC)
+  - . (missing) as an until means "this offset applies indefinitely"
+
+Section: Globals
+*/
+Names Default To Here( 1 );
+
+thisAddIn = "com.github.himanga.JMPOSIPITools";
+If(
+    !Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+    ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+    ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+);
+
+/*
+    Function: LoadTzData
+        ---Prototype---
+        ns:LoadTzData()
+        ---------------
+        Lazily loads timezone data from tzData.jsl into the add-in
+        namespace. Does nothing if data is already loaded.
+
+    Returns:
+        1 if data is available (loaded or already present).
+        0 if tzData is empty (stub not yet populated).
+
+    Notes:
+        - Loads ns:tzData and ns:tzLinks into the namespace.
+        - Safe to call multiple times - only loads once per session.
+        - tzData.jsl must be regenerated via tzBuilder.jsl before
+          meaningful data is available.
+*/
+ns:LoadTzData = Function( {},
+    {DEFAULT LOCAL},
+    // Already loaded if ns:tzData has entries
+    If( Is Associative Array( ns:tzData ) & N Items( ns:tzData ) > 0,
+        Return( 1 )
+    );
+    Include( ns:addinhome || "tz\tzData.jsl" );
+    // Return 0 if still empty (stub not populated)
+    If( N Items( ns:tzData ) == 0,
+        Return( 0 )
+    );
+    Return( 1 )
+);
+
+/*
+    Function: ResolveZoneName
+        ---Prototype---
+        ns:ResolveZoneName( String ianaName )
+        --------------------------------------
+        Resolves an IANA timezone name to its canonical name,
+        following any alias links in ns:tzLinks.
+
+    Parameters:
+    - ianaName - An IANA timezone name string, e.g. "US/Eastern".
+
+    Returns:
+        The canonical IANA name string, e.g. "America/New_York".
+        Returns the input unchanged if it is already canonical or
+        not found in the links table.
+
+    Notes:
+        - Calls <LoadTzData> if data is not yet loaded.
+*/
+ns:ResolveZoneName = Function( {ianaName},
+    {DEFAULT LOCAL},
+    ns:LoadTzData();
+    If( Contains( ns:tzLinks, ianaName ),
+        Return( ns:tzLinks[ianaName] )
+    );
+    Return( ianaName )
+);
+
+/*
+    Function: GetOffsetForTimeZone
+        ---Prototype---
+        ns:GetOffsetForTimeZone( String ianaName, Number jmpDate )
+        -----------------------------------------------------------
+        Returns the UTC offset in minutes for the given IANA timezone
+        name at the given JMP date, correctly accounting for DST
+        transitions.
+
+    Parameters:
+    - ianaName - An IANA timezone name string, e.g. "America/New_York".
+                 Special values "local", "server", and "utc" are handled
+                 by the caller before this function is invoked.
+    - jmpDate  - A JMP numeric date (seconds since 1904-01-01 UTC).
+
+    Returns:
+        Offset in minutes. Positive = behind UTC (west), negative = ahead.
+        Returns 0 and prints a warning if the zone is not found.
+
+    Notes:
+        - Calls <LoadTzData> if data is not yet loaded.
+        - Follows alias links via <ResolveZoneName>.
+        - If jmpDate is before the first recorded transition, the first
+          known offset is used.
+        - If jmpDate is after all transitions, the last known offset is
+          used.
+*/
+ns:GetOffsetForTimeZone = Function( {ianaName, jmpDate},
+    {DEFAULT LOCAL},
+
+    ns:LoadTzData();
+    canonicalName = ns:ResolveZoneName( ianaName );
+
+    If( !Contains( ns:tzData, canonicalName ),
+        Print( "Warning: timezone not found in tzData: " || ianaName );
+        Return( 0 )
+    );
+
+    zone    = ns:tzData[canonicalName];
+    offsets = zone["offsets"];
+    untils  = zone["untils"];
+    n       = N Items( offsets );
+
+    // Walk transitions to find which offset applies at jmpDate
+    // untils[i] is the JMP date when transition i ends
+    // If untils[i] is missing, this offset applies indefinitely
+    For( i = 1, i <= n, i++,
+        If( Type( untils[i] ) == "Empty" | jmpDate < untils[i],
+            Return( offsets[i] )
+        )
+    );
+
+    // Fallback: return last known offset
+    Return( offsets[n] )
+);
+
+/*
+    Function: FormatOffsetMinutes
+        ---Prototype---
+        ns:FormatOffsetMinutes( Number offsetMinutes )
+        -----------------------------------------------
+        Formats an offset in minutes as a UTC offset string.
+
+    Parameters:
+    - offsetMinutes - Offset in minutes, positive = behind UTC.
+                      e.g. 300 -> "UTC-5:00", -330 -> "UTC+5:30"
+
+    Returns:
+        A string like "UTC-5", "UTC+5:30", "UTC+0".
+
+    Notes:
+        - Source convention (positive = behind UTC) is flipped for
+          display so that UTC-5 shows as "UTC-5".
+*/
+ns:FormatOffsetMinutes = Function( {offsetMinutes},
+    {DEFAULT LOCAL},
+    If( offsetMinutes <= 0,
+        sign       = "+";
+        absMinutes = Abs( offsetMinutes );
+    ,
+        sign       = "-";
+        absMinutes = offsetMinutes;
+    );
+    hours = Floor( absMinutes / 60 );
+    mins  = Mod( absMinutes, 60 );
+    "UTC" || sign || Char( hours ) ||
+        If( mins > 0, ":" || Right( "0" || Char( mins ), 2 ), "" )
+);
+
+/*
+    Function: FormatTzLabel
+        ---Prototype---
+        ns:FormatTzLabel( String ianaName )
+        ------------------------------------
+        Formats a display label for a timezone for use in the picker.
+        Format: "Abbr (Region/City) UTC+H:MM / UTC+H:MM DST"
+        DST variant is omitted for zones with no DST.
+
+    Parameters:
+    - ianaName - A canonical IANA timezone name string.
+
+    Returns:
+        A formatted string suitable for display in a Combo Box.
+
+    Notes:
+        - Calls <LoadTzData> if data is not yet loaded.
+        - Uses the most recent standard and DST offsets found in the
+          filtered transition data to derive the label.
+        - For zones with no DST, only one offset is shown.
+*/
+ns:FormatTzLabel = Function( {ianaName},
+    {DEFAULT LOCAL},
+
+    ns:LoadTzData();
+    canonicalName = ns:ResolveZoneName( ianaName );
+
+    If( !Contains( ns:tzData, canonicalName ),
+        Return( ianaName )
+    );
+
+    zone      = ns:tzData[canonicalName];
+    minOffset = zone["minOffset"];
+    maxOffset = zone["maxOffset"];
+
+    // minOffset and maxOffset are in source convention (positive = behind UTC)
+    // For display: the "standard" time is the larger source offset (further behind UTC)
+    // and DST is the smaller source offset (closer to UTC)
+    stdOffsetDisplay = ns:FormatOffsetMinutes( maxOffset );
+
+    If( minOffset == maxOffset,
+        // No DST
+        Return( ianaName || " " || stdOffsetDisplay )
+    ,
+        dstOffsetDisplay = ns:FormatOffsetMinutes( minOffset );
+        Return( ianaName || " " || stdOffsetDisplay || " / " || dstOffsetDisplay || " DST" )
+    )
+);
+
+/*
+    Function: GetTzNamesForPicker
+        ---Prototype---
+        ns:GetTzNamesForPicker( Number minOffsetFilter, Number maxOffsetFilter )
+        -------------------------------------------------------------------------
+        Returns a list of formatted timezone labels for use in the
+        timezone picker Combo Box, filtered by the given UTC offset
+        range. Special entries "local" and "server" are always
+        prepended.
+
+    Parameters:
+    - minOffsetFilter - Minimum UTC offset in minutes to include,
+                        display convention (negative = behind UTC).
+                        Pass -840 to include all western zones (UTC-14).
+    - maxOffsetFilter - Maximum UTC offset in minutes to include.
+                        Pass 720 to include all eastern zones (UTC+12).
+
+    Returns:
+        A list of strings, each formatted by <FormatTzLabel>, with
+        special entries at the top.
+
+    Notes:
+        - Filter uses display convention (negative = west) but tzData
+          stores source convention (positive = west). Conversion is
+          handled internally.
+        - A zone is included if its offset range overlaps the filter
+          range at any point during the year (i.e. either std or DST
+          offset falls within the filter range).
+*/
+ns:GetTzNamesForPicker = Function( {minOffsetFilter, maxOffsetFilter},
+    {DEFAULT LOCAL},
+
+    ns:LoadTzData();
+
+    // Convert display convention to source convention for comparison
+    // display UTC-5 = -300 mins display = +300 mins source
+    srcMin = -maxOffsetFilter;  // display max -> source min
+    srcMax = -minOffsetFilter;  // display min -> source max
+
+    result = {
+        "Local (this machine)",
+        "Server (PI server time)"
+    };
+
+    zoneNames = ns:tzData << Get Keys;
+    For Each( {zoneName}, zoneNames,
+        zone      = ns:tzData[zoneName];
+        minOffset = zone["minOffset"];
+        maxOffset = zone["maxOffset"];
+        // Include if the zone's offset range overlaps the filter range
+        If( minOffset <= srcMax & maxOffset >= srcMin,
+            Insert Into( result, ns:FormatTzLabel( zoneName ) )
+        )
+    );
+
+    // Sort alphabetically after the two special entries
+	// TODO: sort rest alphabetically once SortList indexing is resolved
+	
+    result
+);
+
+/*
+    Function: TzLabelToIanaName
+        ---Prototype---
+        ns:TzLabelToIanaName( String label )
+        -------------------------------------
+        Converts a display label (as produced by <FormatTzLabel> or
+        the special entries) back to an IANA name or special value
+        string suitable for storage in inputs["timeZone"].
+
+    Parameters:
+    - label - A string as returned by <GetTzNamesForPicker>.
+
+    Returns:
+        An IANA timezone name string, or "local" / "server" for the
+        special entries.
+*/
+ns:TzLabelToIanaName = Function( {label},
+    If( label == "Local (this machine)",  Return( "local" ) );
+    If( label == "Server (PI server time)", Return( "server" ) );
+    // IANA name is the first token before the first space
+    Words( label, " " )[1]
+);
