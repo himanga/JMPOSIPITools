@@ -13,6 +13,21 @@ To make changes to and rebuild this add-in, you will need:
 - **git**
 - **GitHub account**
 
+### Internet Access and Proxy Configuration
+
+The `TzData` build step and the "Refresh timezone data" button in the
+add-in both download timezone data from GitHub and require internet access.
+
+If your environment uses a proxy server, configure it in JMP before running:
+
+1. In JMP, go to **File > Preferences > Internet**
+2. Fill in the proxy server hostname and port
+3. For the username, either enter your credentials or use `:` for
+   Kerberos/Windows authentication (no username or password required)
+
+Without this configuration the timezone data download will fail silently
+and `tzData.jsl` will not be updated.
+
 ## Steps to Contribute
 
 1. Install dependencies above
@@ -36,6 +51,19 @@ There are two build scripts in the `build\` folder:
 - **`build_Release.ps1`** — builds the add-in, runs all unit tests, and reports results. Use this before submitting a pull request.
 
 Both scripts read their configuration from `build\buildConfig.ps1`. The `.jmpaddin` output file is named automatically as `JMPOSIPITools_{version}_{state}.jmpaddin`.
+
+### Known Issues
+
+**JMP 20 — script execution when JMP is already open**
+
+JMP 20 cannot already be open when the test build script runs, otherwise it will just
+open the script in a window and not execute it.
+
+Workaround: close all JMP instances before running a build that
+includes `Test` or `TzData` steps.
+
+This does not affect JMP 18 or 19. The issue has been reported to
+JMP support.
 
 ## Versioning
 

@@ -1,9 +1,11 @@
-# build/buildConfig.ps1
-# Default build configuration.
-#
-# To override settings for your local environment, copy any relevant lines
-# from this file to  build/buildConfig.local.ps1 (gitignored). Any variable
-# reassigned there will take precedence over the defaults here.
+<#
+About: Build Configuration
+
+Default configuration values for the build pipeline. Override any
+value locally by creating build/buildConfig.local.ps1 (gitignored).
+
+Section: Globals
+#>
 $AddinSource       = "AddinFiles"
 $TempPath          = "AddinFilesTempForBuild"
 $CustomMetadataRel = "customMetadata.jsl"
@@ -20,7 +22,8 @@ $JmpVersionsToTest = @(
 )
 
 # Apply local overrides if the file exists
-$localConfig = Join-Path $PSScriptRoot "buildConfig.local.ps1"
+$configDir = if ($PSScriptRoot) { $PSScriptRoot } else { Split-Path $MyInvocation.MyCommand.Path -Parent }
+$localConfig = Join-Path $configDir "buildConfig.local.ps1"
 if (Test-Path $localConfig) {
     . $localConfig
 }

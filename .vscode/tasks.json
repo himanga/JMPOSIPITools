@@ -5,7 +5,12 @@
             "label": "Build Quick",
             "type": "shell",
             "command": "powershell",
-            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\build\\build_Quick.ps1"],
+            "args": [
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${workspaceFolder}\\build\\buildInteractive.ps1"
+            ],
             "group": {
                 "kind": "build",
                 "isDefault": true
@@ -22,7 +27,14 @@
             "label": "Build Release",
             "type": "shell",
             "command": "powershell",
-            "args": ["-ExecutionPolicy", "Bypass", "-File", "${workspaceFolder}\\build\\build_Release.ps1"],
+            "args": [
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "${workspaceFolder}\\build\\build.ps1",
+              "-Preset",
+              "Release"
+            ],
             "group": "build",
             "presentation": {
                 "reveal": "always",

@@ -1,3 +1,10 @@
+<#
+About: Build Utilities
+
+Shared helper functions used across the build pipeline.
+
+Section: Globals
+#>
 function Get-CustomMetadata {
     param($Path)
 

@@ -1,15 +1,21 @@
-archive/**
+#Natural docs working files and other build documentation
 NaturalDocs/**
 !NaturalDocs/Comments.txt
 !NaturalDocs/Languages.txt
 !NaturalDocs/Project.txt
 AddinFiles/Docs/**
 !AddinFiles/Docs/Docs.txt
-TestAddinHome/**
+
+# Build temp files
 /Tests/Results/**
 AddinFilesTempForBuild/**
 build/buildConfig.local.ps1
+AddinFilesTempForBuild/
+build/.last_addin
 temp-loadaddin.jsl
+
+# Any packaged files
+archive/**
 *.jmpaddin
 *.zip
 *.bak
