@@ -201,7 +201,7 @@ ns:GetLocalTimeZoneDifference = function( {conn},
         
 */
 ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
-    Round((Today() - utcHeaderDate) / InHours(1)) * InHours(1)
+    Round((Today() - utcHeaderDate) / InMinutes(15)) * InMinutes(15)
 );
 /*
     Function: PiTimeToTimestamp

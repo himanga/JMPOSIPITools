@@ -13,6 +13,7 @@ Notable changes to this project are documented here.
 ### Fixed
 - Render README and CHANGELOG during build for cleaner view in the add-in
 - JMP LivebBugs from earlier changes this release
+- Time zone offsets can be 15 min, not just full hours
 
 ## [0.1303]
 

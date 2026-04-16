@@ -200,30 +200,51 @@ ut test( timeUtilsTestCase, "GetLocalTimeZoneDifference", Expr(
 
 ));
 
-ut test( "timeUtils", "ComputeLocalTimeZoneDifference", Expr(
+ut test( timeUtilsTestCase, "ComputeLocalTimeZoneDifference", Expr(
 
     ut assert that(
-        Expr( ns:ComputeLocalTimeZoneDifference( Today() ) ),
-        ut typed as ( "Number" ),
-        "Returns a numeric duration"
-    );
-
-    ut assert that(
-        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(3.2) ) ),
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(3.1) ) ),
         ut equal to( -InHours(3) ),
-        "Rounds to nearest whole hour difference"
+        "Rounds to nearest whole hour"
     );
 
     ut assert that(
-        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.6) ) ),
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.9) ) ),
         ut equal to( -InHours(3) ),
-        "Rounds .5 hours upward"
+        "Rounds up to whole hour"
     );
 
     ut assert that(
-        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.49) ) ),
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(2.1) ) ),
         ut equal to( -InHours(2) ),
-        "Rounds below .5 hours downward"
+        "Rounds down to whole hour"
+    );
+
+    // 30-minute offset zones (e.g. India UTC+5:30, Newfoundland UTC-3:30)
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(5.5) ) ),
+        ut equal to( -InHours(5.5) ),
+        "Correctly handles 30-minute offset zones"
+    );
+
+    // 45-minute offset zones (e.g. Nepal UTC+5:45)
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InHours(5.75) ) ),
+        ut equal to( -InHours(5.75) ),
+        "Correctly handles 45-minute offset zones"
+    );
+
+    // 15-minute boundary
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InMinutes(7) ) ),
+        ut equal to( 0 ),
+        "Rounds to zero within 7 minutes of UTC"
+    );
+
+    ut assert that(
+        Expr( ns:ComputeLocalTimeZoneDifference( Today() + InMinutes(8) ) ),
+        ut equal to( -InMinutes(15) ),
+        "Rounds to 15 minutes at 8 minutes past boundary"
     );
 
 ));
