@@ -96,10 +96,7 @@ ns:ParseDateString = Function( {conn, dateString},
 
     parsed = ParseDate( baseString );
 
-    If( isUTC,
-        parsed + ns:GetLocalTimeZoneDifference( conn ),
-        parsed
-    )
+    parsed
 );
 
 /*
@@ -133,8 +130,7 @@ ns:ToDateString = Function( {conn, date},
         Throw( "ToDateString requires a numeric JMP date value" )
     );
 
-    utcDate    = date - ns:GetLocalTimeZoneDifference( conn );
-    dateString = FormatDate( utcDate, "yyyy-mm-ddThh:mm:ss" );
+    dateString = FormatDate( date, "yyyy-mm-ddThh:mm:ss" );
 
     dateString || "Z"
 );
@@ -167,10 +163,12 @@ ns:GetLocalTimeZoneDifference = function( {conn},
 
     If(
         Length( Loc( conn << Get Keys, "timeDifference" ) ) > 0,
+ns:ToLogConn(conn, "GetLocalTimeZoneDifference", "timeDiff already set: " || conn["timeDifference"]);
             conn["timeDifference"],
-
         utc = ns:FetchUtcHeader( conn );
+ns:ToLogConn(conn, "GetLocalTimeZoneDifference", "getting timeDifference: utc = " || char(utc));
         tz  = ns:ComputeLocalTimeZoneDifference( utc );
+ns:ToLogConn(conn, "GetLocalTimeZoneDifference", "getting timeDifference: tz = " || char(tz));
         conn["timeDifference"] = tz;
         tz
     )
@@ -201,7 +199,7 @@ ns:GetLocalTimeZoneDifference = function( {conn},
         
 */
 ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
-    Round((Today() - utcHeaderDate) / InHours(1)) * InHours(1)
+    Round((Today() - utcHeaderDate) / InMinutes(15)) * InMinutes(15)
 );
 /*
     Function: PiTimeToTimestamp
@@ -232,7 +230,7 @@ ns:ComputeLocalTimeZoneDifference = function({utcHeaderDate},
         - Input list must not be empty.
 */
 ns:PiTimeToTimestamp = function( {conn, piTimes, parseTimestamp=0},
-    { params, fetchTimestamp, timestamps },
+    { params, fetchTimestamp, timestamps, result },
 
     If(
         !Is List( piTimes ) | N Items( piTimes ) == 0,
@@ -244,10 +242,13 @@ ns:PiTimeToTimestamp = function( {conn, piTimes, parseTimestamp=0},
 	timestamps = Transform Each({piTime, i}, piTimes, 
 		params["time"] = piTime;
         result = ns:GetRequest( conn, "calculation/times/", params );
+ns:toLogConn(conn,"PitimetoTimestamp", Expr(result));
 		ts = result["Items"][1]["Timestamp"];
+ns:toLogConn(conn,"PitimetoTimestamp", Expr(ts));
 		if(parseTimestamp,
             ts = ns:ParseDateString( conn, ts )
 		);
+ns:toLogConn(conn,"PitimetoTimestamp", Expr(ts));
 		ts;
 	);
 	Return(timestamps)

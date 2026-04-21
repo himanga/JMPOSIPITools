@@ -8,7 +8,7 @@
 
 - [ ] I am legally able to add these changes to this project.
 - [ ] I documentationed the changes with Natural Docs.
-- [ ] I included tests using jsl-hamcrest.
+- [ ] I included tests using jsl-hamcrest where appropriate.
 
 <!--- Replace your name and e-mail below -->
 Signed-off-by: Random J Developer <random@developer.example.org>

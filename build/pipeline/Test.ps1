@@ -25,39 +25,68 @@ Set-Content $tempLoad "Open(`"$addinFullPath`");`nQuit(`"No Save`";);"
 $anyFailures = $false
 $testedVersions = 0
 
-foreach ($jmpExe in $JmpVersionsToTest) {
+foreach ($thisjmpExe in $JmpVersionsToTest) {
 
-    if ([string]::IsNullOrWhiteSpace($jmpExe)) { continue }
-    if (-not (Test-Path $jmpExe)) {
-        Write-Host "Skipping $jmpExe (not found)"
+    if ([string]::IsNullOrWhiteSpace($thisjmpExe)) { continue }
+    if (-not (Test-Path $thisjmpExe)) {
+        Write-Host "Skipping $thisjmpExe (not found)"
         continue
     }
 
     Write-Host "`n====================================="
-    Write-Host "Testing against $jmpExe"
+    Write-Host "Testing against $thisjmpExe"
     Write-Host "====================================="
 
     Write-Output "Opening JMP to load add-in"
-    Start-Process $jmpExe -ArgumentList $tempLoad -Wait -NoNewWindow
+    Start-Process $thisjmpExe -ArgumentList $tempLoad -Wait -NoNewWindow
 
     Write-Output "Opening JMP to run tests"
-    $testScript = Join-Path (Get-Location) "Tests/RunTestsStandaloneQuitWhenDone.jsl"
-    $resultPath = Join-Path $env:TEMP "temp-unittestoutput.txt"
+    $safeJmpName = $thisjmpExe -replace '[/:\\*?"<>| .]', '_'
+    $pathRunTests = Join-Path $ProjectRoot "Tests/RunTestsStandalone.jsl"
+    $pathTestsConfigDefault = Join-Path $ProjectRoot "Tests/testConfig.default.jsl"
+    $pathTestsConfigLocal = Join-Path $ProjectRoot "Tests/testConfig.local.jsl"
+    $pathTestScript = Join-Path (Get-Location) "temp-buildtestdata-$($safeJmpName).jsl"
+    $pathTestOutput = Join-Path (Get-Location) "temp-buildtestdataOutput-$($safeJmpName).jsl"
+    $pathTestLog = Join-Path (Get-Location) "temp-buildtestdataLog-$($safeJmpName).jsl"
 
-    Start-Process $jmpExe -ArgumentList $testScript -Wait -NoNewWindow
+Set-Content $pathTestScript @"
+tzLogs = Log Capture(
+    global:pathTestOutput = "$($pathTestOutput -replace '\\', '/')";
+    Include( "$pathTestsConfigDefault" );
+    If( File Exists( "$pathTestsConfigLocal" ),
+        Include( "$pathTestsConfigLocal" )
+    );
+    Include("$($pathRunTests -replace '\\', '/')");
+);
+Save Text File(
+    "$pathTestLog",
+    tzLogs
+);
+Quit("No Save");
+"@
 
-    if (-not (Test-Path $resultPath)) {
+    Start-Process $thisjmpExe -ArgumentList "`"$pathTestScript`"" -Wait -NoNewWindow
+
+    if (-not (Test-Path $pathTestOutput)) {
         throw "Unit test output was not generated"
     }
 
-    $result = Get-Content $resultPath -Raw | ConvertFrom-Json
+    $result = Get-Content $pathTestOutput -Raw | ConvertFrom-Json
+    $completeTime = [datetime]::ParseExact($result.'Complete Time', "yyyy-MM-ddTHH:mm:ss", $null)
+    $elapsed = (Get-Date) - $completeTime
+    
+    # if ($elapsed.TotalSeconds -gt 30) {
+    #     throw "Test output is stale ($([int]$elapsed.TotalSeconds) seconds old) - JMP may not have completed"
+    # }
 
     $ReportFailures = "-------------- Failures --------------" + (
         ($result.ReporterOutput -split '-------------- Failures --------------', 2)[1]
     )
     $ReportHeader = ($result.ReporterOutput -split '-----', 2)[0]
 
-    Write-Host "`nUNIT TEST RESULTS - $jmpExe"
+    Write-Host "`nUNIT TEST RESULTS - $thisjmpExe"
+    Write-Host "JMP Home Check: "$result.JMPHome
+    Write-Host "Time since result: $($elapsed.TotalSeconds) seconds"
     Write-Host $ReportFailures
     Write-Host $ReportHeader
 
@@ -68,11 +97,8 @@ foreach ($jmpExe in $JmpVersionsToTest) {
         Write-Host "`nPASSED"
     }
 
-    Remove-Item $resultPath -Force -ErrorAction SilentlyContinue
     $testedVersions++
 }
-
-Remove-Item $tempLoad -Force -ErrorAction SilentlyContinue
 
 if ($testedVersions -eq 0) {
     throw "No JMP versions available for testing"

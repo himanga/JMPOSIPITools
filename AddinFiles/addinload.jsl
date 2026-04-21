@@ -26,6 +26,8 @@ Include( "queries/dataTables.jsl" );
 Include( "queries/http.jsl" );
 Include( "queries/pointQueries.jsl" );
 Include( "queries/timeUtils.jsl" );
+Include( "tz/tzUtils.jsl" );
+Include( "tz/tzFormulaBuilder.jsl" );
 
 // This is the most rows that the web API can return
 ns:APIRowLimit = 150000;
@@ -36,7 +38,8 @@ ns:DefaultPref = Associative Array({
 	{"Base_Url", "https://localhost/piwebapi"},
 	{"Max_Rows", "10000"},
 	{"Connection_List", ""},
-	{"Allow_Insecure_Connections", "no"}
+	{"Allow_Insecure_Connections", "no"},
+	{"Default_TimeZone", "current_offset"}
 });
 
 //set preference types, descriptions, and value restrictions
@@ -65,6 +68,11 @@ ns:PrefInfo = Associative Array({
 		"Whether to allow connections to secuire sites that do not have a valid certificate.  Use this for testing only. (yes/no).",
 		"char",
 		{"yes", "no"}
+	}},
+	{"Default_TimeZone", {
+		"Default timezone for output tables. Use an IANA timezone name (e.g. America/Chicago), current_offset, or server.",
+		"char",
+		{"Default_TimeZone", "America/Chicago"}
 	}}
 });
 

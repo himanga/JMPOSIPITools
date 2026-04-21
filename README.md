@@ -13,3 +13,17 @@ See CONTRIBUTING.md for more details.
 - [Predictum Inc.](https://predictum.com/)
 - [Marc Champagne](mailto:Marc.Champagne@adm.com)
 - [Jonathan Austin](mailto:jonathanrobaustin@gmail.com)
+
+## Third-Party Data
+
+### Timezone Data
+
+Timezone data is derived from the [IANA Time Zone Database](https://www.iana.org/time-zones)
+via [moment-timezone](https://momentjs.com/timezone/) (MIT License).
+
+The file `AddinFiles/tz/tzData.jsl` is generated at build time from the
+moment-timezone unpacked data format. To regenerate it, run
+`build/buildTzData.ps1` or use the "Refresh timezone data" button in the
+add-in (requires internet access).
+
+Source: https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json

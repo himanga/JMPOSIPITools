@@ -179,8 +179,9 @@ CollectQueryInputs = function( {},
 
 	// Output options
 	s["tableName"]         = tb_tablename  << GetText;
-	s["hideprefix"]        = cb_hideprefix << Get;
-	s["tagToNotes"]        = cb_tagtonotes << Get;
+	s["hideprefix"]        = chk_hideprefix << Get;
+	s["tagToNotes"]        = chk_tagtonotes << Get;
+	s["logLevel"]          = cb_loglevel << Get Text;
 
 	// Tag table
 	s["TagSearchStrings"]  = dtPoints:"Tag Search"    << Get Values;
@@ -198,6 +199,11 @@ CollectQueryInputs = function( {},
 	
 	//get user preference to allow insecure
 	s["allowInsecure"] = ns:UserPref["Allow_Insecure_Connections"];
+
+	// Timezone — read from per-query picker, defaults to user preference
+	tz = ns:TzLabelToIanaName( tb_timezone_display << Get Text );
+	If( tz == "local", tz = "current_offset" );
+	s["timeZone"] = tz;
 
 	return( s )
 );
@@ -241,8 +247,20 @@ ApplyQueryInputs = function( {inputs},
 
 	// Output options
 	tb_tablename  << Set Text( inputs["tableName"] );
-	cb_hideprefix << Set( Loc( cb_hideprefix << Get Items, inputs["hideprefix"] ) );
-	cb_tagtonotes << Set( Loc( cb_tagtonotes << Get Items, inputs["tagToNotes"] ) );
+	chk_hideprefix << Set( inputs["hideprefix"] );
+	chk_tagtonotes << Set( inputs["tagToNotes"] );
+	cb_loglevel   << Set( Loc( cb_loglevel   << Get Items, inputs["logLevel"] ) );
+
+	// Timezone picker// In ApplyQueryInputs
+	// Normalize legacy timezone values from saved settings
+	tz = inputs["timeZone"];
+	If( tz == "local", tz = "current_offset" );
+	tb_timezone_display << Set Text(
+		If(
+			tz == "current_offset", "Current UTC offset of this machine",
+			ns:FormatTzLabel( tz )
+		)
+	);
 
 	// Tag table
 	nrows = N Items( inputs["TagSearchStrings"] );
@@ -322,9 +340,9 @@ exQueries = {
 			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
 			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
-			dtPoints:Return value << Set Values( {"Yes" } ),
-			dtPoints:Return svalue << Set Values( {"No" } ),
-			dtPoints:Return status << Set Values( {"No" } )
+			dtPoints:Return value << Set Values( Repeat({"Yes"},10) ),
+			dtPoints:Return svalue << Set Values( Repeat({"No"},10) ),
+			dtPoints:Return status << Set Values( Repeat({"No"},10) )
 		}
 	},
 	{
@@ -340,9 +358,9 @@ exQueries = {
 			dtPoints:Tag Search << Set Values( {"" } ),
 			dtPoints:Desc Search << Set Values( {"sinusoid" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
-			dtPoints:Return value << Set Values( {"Yes" } ),
-			dtPoints:Return svalue << Set Values( {"No" } ),
-			dtPoints:Return status << Set Values( {"No" } )
+			dtPoints:Return value << Set Values( Repeat({"Yes"},10) ),
+			dtPoints:Return svalue << Set Values( Repeat({"No"},10) ),
+			dtPoints:Return status << Set Values( Repeat({"No"},10) )
 		}
 	},
 	{
@@ -364,9 +382,9 @@ exQueries = {
 			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
 			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
-			dtPoints:Return value << Set Values( {"Yes" } ),
-			dtPoints:Return svalue << Set Values( {"No" } ),
-			dtPoints:Return status << Set Values( {"No" } )
+			dtPoints:Return value << Set Values( Repeat({"Yes"},10) ),
+			dtPoints:Return svalue << Set Values( Repeat({"No"},10) ),
+			dtPoints:Return status << Set Values( Repeat({"No"},10) )
 		}
 	},
 	{
@@ -387,9 +405,9 @@ exQueries = {
 			dtPoints:Tag Search << Set Values( {"sinusoid" } ),
 			dtPoints:Desc Search << Set Values( {"" } ),
 			dtPoints:Friendly Name << Set Values( {"" } ),
-			dtPoints:Return value << Set Values( {"Yes" } ),
-			dtPoints:Return svalue << Set Values( {"No" } ),
-			dtPoints:Return status << Set Values( {"No" } )
+			dtPoints:Return value << Set Values( Repeat({"Yes"},10) ),
+			dtPoints:Return svalue << Set Values( Repeat({"No"},10) ),
+			dtPoints:Return status << Set Values( Repeat({"No"},10) )
 		}
 	}
 };

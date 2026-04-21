@@ -1,0 +1,1042 @@
+﻿/* About: Timezone Formula Builder Tests
+
+Unit tests for MakeUTCToLocalFormula and MakeLocalToUTCFormula
+in tzFormulaBuilder.jsl.
+
+Section: Globals
+*/
+
+
+ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+//values don't exist yet
+ut test( "tzFormulaBuilder", "MakeUTCToLocalFormula", Expr(
+
+    // scalar
+    ut assert that( Expr( 
+            MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
+            ns:MakeUTCToLocalFormula( Expr( a ), "utc", "scalar" ) ),
+        ut equal to( Expr( a ) ),
+        "scalar: UTC returns formula that is just the input"
+    );
+) );
+
+//using variable inside local context shouldn't break
+ut test( tzFormulaBuilder, "MakeUTCToLocalFormula", Expr(
+
+    ut assert that( Expr( 
+            MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
+            ns:MakeUTCToLocalFormula( Expr( a ), "utc", "scalar" ) ),
+        ut equal to( Expr( a ) ),
+        "using variable from inside function doesn't break it"
+    );
+) );
+
+tzFormulaCase = ut test case( "tzFormulaBuilder" )
+    << Setup( Eval Expr(
+			JAN_2024_UTC  = Expr( Date MDY( 1, 15, 2024 ) + In Hours( 12 ) );
+			JUL_2024_UTC  = Expr( Date MDY( 7, 15, 2024 ) + In Hours( 12 ) );
+			DST_START_JMP = 3792898800;
+			DST_END_JMP   = 3813458400;
+			JAN_2024_EST  = JAN_2024_UTC - In Minutes( 300 );
+			JUL_2024_EDT  = JUL_2024_UTC - In Minutes( 240 );
+			JAN_2024_IST  = JAN_2024_UTC + In Minutes( 330 );
+			AMBIGUOUS_JMP = DST_END_JMP + In Minutes( 30 );
+			ns:LoadTzData();
+			If( N Items( ns:tzData ) < 100,
+				Throw( "tzData.jsl has not been populated - run tzBuilder.jsl first" )
+			);
+		);
+	);
+// ── MakeUTCToLocalFormula — UTC zone ──────────────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - utc", Expr(
+
+    // scalar
+    t = JAN_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "utc", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar: UTC returns value unchanged"
+    );
+
+    // column — same as scalar
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "utc", "column" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "column: UTC returns value unchanged"
+    );
+
+    // list
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "utc", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC ),
+        "list: first element unchanged"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC ),
+        "list: second element unchanged"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — fixed UTC offset ──────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - fixed offset", Expr(
+
+    t = JAN_2024_UTC;
+
+    // UTC-5 whole hour
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "UTC-5", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC - In Hours( 5 ) ),
+        "scalar UTC-5: subtracts 5 hours"
+    );
+
+    // UTC+5:30 half hour
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "UTC+5:30", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC + In Minutes( 330 ) ),
+        "scalar UTC+5:30: adds 5 hours 30 minutes"
+    );
+
+    // UTC+0
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "UTC+0", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC+0: returns value unchanged"
+    );
+
+    // UTC-3:30 Newfoundland
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "UTC-3:30", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC - In Minutes( 210 ) ),
+        "scalar UTC-3:30: subtracts 3 hours 30 minutes"
+    );
+
+    // UTC+9 Tokyo
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "UTC+9", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC + In Hours( 9 ) ),
+        "scalar UTC+9: adds 9 hours"
+    );
+
+    // list — fixed offset applies uniformly
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "UTC-5", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC - In Hours( 5 ) ),
+        "list UTC-5: first element correct"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC - In Hours( 5 ) ),
+        "list UTC-5: second element correct"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — fixed IANA zone ───────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - Asia/Kolkata", Expr(
+
+    t = JAN_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "Asia/Kolkata", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_IST ),
+        "scalar: India UTC+5:30: 12:00 UTC -> 17:30 local"
+    );
+
+    t = JUL_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "Asia/Kolkata", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JUL_2024_UTC + In Minutes( 330 ) ),
+        "scalar: India UTC+5:30: same offset in summer — no DST"
+    );
+
+    // list
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "Asia/Kolkata", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_IST ),
+        "list: India first element correct"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC + In Minutes( 330 ) ),
+        "list: India second element correct"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — DST IANA zone ─────────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - America/New_York", Expr(
+
+    // January — standard time
+    t = JAN_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_EST ),
+        "scalar: 12:00 UTC Jan -> 07:00 EST"
+    );
+
+    // July — DST
+    t = JUL_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JUL_2024_EDT ),
+        "scalar: 12:00 UTC Jul -> 08:00 EDT"
+    );
+
+    // DST boundary tests
+    t = DST_START_JMP - 1;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_START_JMP - 1 - In Minutes( 300 ) ),
+        "scalar: one second before DST start is still EST"
+    );
+
+    t = DST_START_JMP;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_START_JMP - In Minutes( 240 ) ),
+        "scalar: exactly at DST start is EDT"
+    );
+
+    t = DST_END_JMP - 1;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP - 1 - In Minutes( 240 ) ),
+        "scalar: one second before DST end is still EDT"
+    );
+
+    t = DST_END_JMP;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP - In Minutes( 300 ) ),
+        "scalar: exactly at DST end is EST"
+    );
+
+    // list — DST-aware across two offsets
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "America/New_York", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_EST ),
+        "list: January uses EST"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_EDT ),
+        "list: July uses EDT"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — unknown IANA zone ─────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - unknown zone", Expr(
+
+    t = JAN_2024_UTC;
+    formula = ns:MakeUTCToLocalFormula( Expr( t ), "Zone/DoesNotExist", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "Unknown zone returns value unchanged"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — invalid input ─────────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - invalid input", Expr(
+
+    t = JAN_2024_UTC;
+
+    ut assert that(
+        Expr( ns:MakeUTCToLocalFormula( Expr( t ), "current_offset", "scalar" ) ),
+        ut throws( ut anything() ),
+        "current_offset is not valid — caller must resolve to UTC±H first"
+    );
+
+    ut assert that(
+        Expr( ns:MakeUTCToLocalFormula( Expr( t ), "server", "scalar" ) ),
+        ut throws( ut anything() ),
+        "server is not valid — caller must resolve to UTC±H first"
+    );
+
+    ut assert that(
+        Expr( ns:MakeUTCToLocalFormula( Expr( t ), "UTC-5", "bad_type" ) ),
+        ut throws( ut anything() ),
+        "invalid outputType throws"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — comprehensive date coverage ───────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - comprehensive coverage", Expr(
+
+    // Generate ~10 evenly spaced dates per year across the tzData window
+    // tzData covers approximately 10 years
+    windowStart = Date MDY( 1, 1, 2016 );
+    windowEnd   = Date MDY( 1, 1, 2026 );
+    nDates      = 100; // ~10 per year
+    step        = ( windowEnd - windowStart ) / nDates;
+
+    testDates = Eval List(
+        Transform Each( {i}, 1 :: nDates,
+            windowStart + ( i - 1 ) * step
+        )
+    );
+
+    // For each date, verify formula result matches GetOffsetForTimeZone directly
+    // America/New_York — DST zone
+    formula = ns:MakeUTCToLocalFormula( Expr( testDates ), "America/New_York", "list" );
+    results = Eval( formula );
+
+    allMatch = 1;
+    For( i = 1, i <= N Items( testDates ), i++,
+        expected = testDates[i] - In Minutes(
+            ns:GetOffsetForTimeZone( "America/New_York", testDates[i] )
+        );
+        If( results[i] != expected,
+            allMatch = 0;
+            Print( "Mismatch at date " || Char( i ) || ": " ||
+                Format Date( testDates[i], "yyyy-mm-ddThh:mm:ss" ) ||
+                " expected " || Char( expected ) ||
+                " got " || Char( results[i] )
+            )
+        )
+    );
+    ut assert that(
+        Expr( allMatch ),
+        ut equal to( 1 ),
+        "America/New_York: all 100 dates match GetOffsetForTimeZone"
+    );
+
+    // Asia/Kolkata — fixed zone, should all be +5:30
+    formula = ns:MakeUTCToLocalFormula( Expr( testDates ), "Asia/Kolkata", "list" );
+    results = Eval( formula );
+
+    allMatch = 1;
+    For( i = 1, i <= N Items( testDates ), i++,
+        expected = testDates[i] - In Minutes(
+            ns:GetOffsetForTimeZone( "Asia/Kolkata", testDates[i] )
+        );
+        If( results[i] != expected,
+            allMatch = 0;
+            Print( "Mismatch at " || Format Date( testDates[i], "yyyy-mm-ddThh:mm:ss" ) )
+        )
+    );
+    ut assert that(
+        Expr( allMatch ),
+        ut equal to( 1 ),
+        "Asia/Kolkata: all 100 dates match GetOffsetForTimeZone"
+    );
+
+    // America/St_Johns — UTC-3:30 with DST, half-hour zone
+    formula = ns:MakeUTCToLocalFormula( Expr( testDates ), "America/St_Johns", "list" );
+    results = Eval( formula );
+
+    allMatch = 1;
+    For( i = 1, i <= N Items( testDates ), i++,
+        expected = testDates[i] - In Minutes(
+            ns:GetOffsetForTimeZone( "America/St_Johns", testDates[i] )
+        );
+        If( results[i] != expected,
+            allMatch = 0;
+            Print( "Mismatch at " || Format Date( testDates[i], "yyyy-mm-ddThh:mm:ss" ) )
+        )
+    );
+    ut assert that(
+        Expr( allMatch ),
+        ut equal to( 1 ),
+        "America/St_Johns: all 100 dates match GetOffsetForTimeZone"
+    );
+
+    // Europe/London — DST zone east of UTC, crosses zero
+    formula = ns:MakeUTCToLocalFormula( Expr( testDates ), "Europe/London", "list" );
+    results = Eval( formula );
+
+    allMatch = 1;
+    For( i = 1, i <= N Items( testDates ), i++,
+        expected = testDates[i] - In Minutes(
+            ns:GetOffsetForTimeZone( "Europe/London", testDates[i] )
+        );
+        If( results[i] != expected,
+            allMatch = 0;
+            Print( "Mismatch at " || Format Date( testDates[i], "yyyy-mm-ddThh:mm:ss" ) )
+        )
+    );
+    ut assert that(
+        Expr( allMatch ),
+        ut equal to( 1 ),
+        "Europe/London: all 100 dates match GetOffsetForTimeZone"
+    );
+
+    // Asia/Kathmandu — UTC+5:45, no DST, unusual offset
+    formula = ns:MakeUTCToLocalFormula( Expr( testDates ), "Asia/Kathmandu", "list" );
+    results = Eval( formula );
+
+    allMatch = 1;
+    For( i = 1, i <= N Items( testDates ), i++,
+        expected = testDates[i] - In Minutes(
+            ns:GetOffsetForTimeZone( "Asia/Kathmandu", testDates[i] )
+        );
+        If( results[i] != expected,
+            allMatch = 0;
+            Print( "Mismatch at " || Format Date( testDates[i], "yyyy-mm-ddThh:mm:ss" ) )
+        )
+    );
+    ut assert that(
+        Expr( allMatch ),
+        ut equal to( 1 ),
+        "Asia/Kathmandu: all 100 dates match GetOffsetForTimeZone"
+    );
+
+));
+
+// ── MakeUTCToLocalFormula — matrix input ──────────────────────────────────────
+ut test( tzFormulaCase, "MakeUTCToLocalFormula - matrix", Expr(
+
+    // Single column matrix (n x 1)
+    times = Matrix( {JAN_2024_UTC, JUL_2024_UTC, DST_START_JMP, DST_END_JMP} );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "America/New_York", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 4 ),
+        "single column matrix: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 1 ),
+        "single column matrix: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_EST ),
+        "single column matrix: January uses EST"
+    );
+    ut assert that(
+        Expr( result[2, 1] ),
+        ut equal to( JUL_2024_EDT ),
+        "single column matrix: July uses EDT"
+    );
+    ut assert that(
+        Expr( result[3, 1] ),
+        ut equal to( DST_START_JMP - In Minutes( 240 ) ),
+        "single column matrix: exactly at DST start uses EDT"
+    );
+    ut assert that(
+        Expr( result[4, 1] ),
+        ut equal to( DST_END_JMP - In Minutes( 300 ) ),
+        "single column matrix: exactly at DST end uses EST"
+    );
+
+    // Single row matrix (1 x n)
+    times = Matrix( {JAN_2024_UTC, JUL_2024_UTC} );
+    times = Transpose( times );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "America/New_York", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 1 ),
+        "single row matrix: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 2 ),
+        "single row matrix: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_EST ),
+        "single row matrix: first element uses EST"
+    );
+    ut assert that(
+        Expr( result[1, 2] ),
+        ut equal to( JUL_2024_EDT ),
+        "single row matrix: second element uses EDT"
+    );
+
+    // Multi-row multi-column matrix (3 x 2)
+    times = Matrix(
+        {JAN_2024_UTC, JUL_2024_UTC,
+         DST_START_JMP - 1, DST_START_JMP,
+         DST_END_JMP - 1, DST_END_JMP}
+    );
+    times = Shape( times, 3, 2 );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "America/New_York", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 3 ),
+        "3x2 matrix: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 2 ),
+        "3x2 matrix: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_EST ),
+        "3x2 matrix [1,1]: January uses EST"
+    );
+    ut assert that(
+        Expr( result[1, 2] ),
+        ut equal to( JUL_2024_EDT ),
+        "3x2 matrix [1,2]: July uses EDT"
+    );
+    ut assert that(
+        Expr( result[2, 1] ),
+        ut equal to( DST_START_JMP - 1 - In Minutes( 300 ) ),
+        "3x2 matrix [2,1]: one second before DST start uses EST"
+    );
+    ut assert that(
+        Expr( result[2, 2] ),
+        ut equal to( DST_START_JMP - In Minutes( 240 ) ),
+        "3x2 matrix [2,2]: exactly at DST start uses EDT"
+    );
+    ut assert that(
+        Expr( result[3, 1] ),
+        ut equal to( DST_END_JMP - 1 - In Minutes( 240 ) ),
+        "3x2 matrix [3,1]: one second before DST end uses EDT"
+    );
+    ut assert that(
+        Expr( result[3, 2] ),
+        ut equal to( DST_END_JMP - In Minutes( 300 ) ),
+        "3x2 matrix [3,2]: exactly at DST end uses EST"
+    );
+
+    // Fixed offset — verify shape preserved
+    times = Matrix(
+        {JAN_2024_UTC, JUL_2024_UTC,
+         DST_START_JMP, DST_END_JMP}
+    );
+    times = Shape( times, 2, 2 );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "UTC-5", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 2 ),
+        "2x2 fixed offset: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 2 ),
+        "2x2 fixed offset: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_UTC - In Hours( 5 ) ),
+        "2x2 fixed offset [1,1]: correct"
+    );
+    ut assert that(
+        Expr( result[2, 2] ),
+        ut equal to( DST_END_JMP - In Hours( 5 ) ),
+        "2x2 fixed offset [2,2]: correct"
+    );
+
+    // UTC — shape preserved, values unchanged
+    times = Shape( Matrix( {JAN_2024_UTC, JUL_2024_UTC, DST_START_JMP} ), 3, 1 );
+    formula = ns:MakeUTCToLocalFormula( Expr( times ), "utc", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 3 ),
+        "UTC 3x1: row count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_UTC ),
+        "UTC 3x1: values unchanged"
+    );
+
+));
+
+
+// ── MakeLocalToUTCFormula — UTC zone ──────────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - utc", Expr(
+
+    // scalar
+    t = JAN_2024_UTC;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "utc", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar: UTC returns value unchanged"
+    );
+
+    // column
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "utc", "column" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "column: UTC returns value unchanged"
+    );
+
+    // list
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "utc", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC ),
+        "list: first element unchanged"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC ),
+        "list: second element unchanged"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — fixed UTC offset ──────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - fixed offset", Expr(
+
+    t = JAN_2024_EST;  // 07:00 local EST
+
+    // UTC-5 — local to UTC adds 5 hours
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "UTC-5", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC-5: 07:00 local -> 12:00 UTC"
+    );
+
+    // UTC+5:30 — local to UTC subtracts 5:30
+    t = JAN_2024_IST;  // 17:30 local IST
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "UTC+5:30", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC+5:30: 17:30 local -> 12:00 UTC"
+    );
+
+    // UTC+0 — unchanged
+    t = JAN_2024_UTC;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "UTC+0", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC+0: returns value unchanged"
+    );
+
+    // UTC-3:30 Newfoundland
+    t = JAN_2024_UTC - In Minutes( 210 );  // local NST time
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "UTC-3:30", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC-3:30: local -> UTC"
+    );
+
+    // UTC+9 Tokyo
+    t = JAN_2024_UTC + In Hours( 9 );  // local JST time
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "UTC+9", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar UTC+9: local -> UTC"
+    );
+
+    // list
+    times = Eval List( {JAN_2024_EST, JUL_2024_EDT} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "UTC-5", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC ),
+        "list UTC-5: first element correct"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC + In Hours( 1 ) ),
+        // UTC-4 local -> UTC-5 local -> adding 5 not 4 hours
+        "list UTC-5: second element correct (fixed offset ignores DST)"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — fixed IANA zone ───────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - Asia/Kolkata", Expr(
+
+    // 17:30 local IST -> 12:00 UTC
+    t = JAN_2024_IST;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "Asia/Kolkata", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar: 17:30 IST -> 12:00 UTC"
+    );
+
+    // Same in summer — no DST
+    t = JUL_2024_UTC + In Minutes( 330 );
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "Asia/Kolkata", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JUL_2024_UTC ),
+        "scalar: India same offset in summer"
+    );
+
+    // list
+    times = Eval List( {JAN_2024_IST, JUL_2024_UTC + In Minutes( 330 )} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "Asia/Kolkata", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC ),
+        "list: India January correct"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC ),
+        "list: India July correct"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — DST IANA zone (unambiguous times) ─────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - America/New_York unambiguous", Expr(
+
+    // January EST local -> UTC
+    t = JAN_2024_EST;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "scalar: 07:00 EST -> 12:00 UTC"
+    );
+
+    // July EDT local -> UTC
+    t = JUL_2024_EDT;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JUL_2024_UTC ),
+        "scalar: 08:00 EDT -> 12:00 UTC"
+    );
+
+    // One second before spring-forward in local time
+    // DST_START_JMP - 1 UTC = 01:59:59 EST local
+    t = DST_START_JMP - 1 - In Minutes( 300 );
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_START_JMP - 1 ),
+        "scalar: 01:59:59 EST local -> one second before DST start UTC"
+    );
+
+    // One second after spring-forward in local time
+    // DST_START_JMP UTC = 03:00:00 EDT local (clocks skip 02:00-02:59)
+    t = DST_START_JMP - In Minutes( 240 );
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_START_JMP ),
+        "scalar: 03:00:00 EDT local -> exactly DST start UTC"
+    );
+
+    // list — unambiguous times in both EST and EDT
+    times = Eval List( {JAN_2024_EST, JUL_2024_EDT} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "America/New_York", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( JAN_2024_UTC ),
+        "list: EST January correct"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JUL_2024_UTC ),
+        "list: EDT July correct"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — ambiguous hour ────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - ambiguous hour", Expr(
+
+    // 2024-11-03 fall-back:
+    // DST_END_JMP = 3813458400 = 06:00 UTC
+    // ambigStart (local) = DST_END_JMP - 240*60 = 05:00 UTC in local = 01:00 EDT
+    // ambigEnd   (local) = DST_END_JMP - 300*60 = 04:00 UTC in local = 01:00 EST
+    // AMBIGUOUS_JMP = DST_END_JMP + 30*60 = 06:30 UTC
+    // Its local time = DST_END_JMP - 270*60 = 01:30 (appears twice)
+    //   First  (EDT): local + 240*60 = DST_END_JMP - 1800 = 05:30 UTC
+    //   Second (EST): local + 300*60 = DST_END_JMP + 1800 = 06:30 UTC
+
+    ambigLocal = DST_END_JMP - 270 * 60;  // 01:30 local — appears twice
+
+    // Default (first) — should return EDT interpretation (05:30 UTC)
+    t = ambigLocal;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP - 1800 ),
+        "ambiguous default (first): returns EDT interpretation (05:30 UTC)"
+    );
+
+    // Explicit first — same result
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar", "first" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP - 1800 ),
+        "ambiguous first: returns EDT interpretation (05:30 UTC)"
+    );
+
+    // last — should return EST interpretation (06:30 UTC)
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar", "last" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP + 1800 ),
+        "ambiguous last: returns EST interpretation (06:30 UTC)"
+    );
+
+    // One second before ambiguous range — unambiguous EDT
+    // ambigStart - 1 second in local time
+    t = DST_END_JMP - 240 * 60 - 1;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP - 1 ),
+        "one second before ambiguous range: unambiguous EDT"
+    );
+
+    // One second after ambiguous range — unambiguous EST
+    // ambigEnd - 1 second in local time (just past end of ambiguous range)
+    t = DST_END_JMP - 300 * 60 + 3600;  // 02:00 EST local — unambiguous
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "America/New_York", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( DST_END_JMP + 3600 ),
+        "after ambiguous range: unambiguous EST"
+    );
+
+    // list — mix of ambiguous and unambiguous
+    times = Eval List( {ambigLocal, JAN_2024_EST} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "America/New_York", "list" );
+    result = Eval( formula );
+    ut assert that(
+        Expr( result[1] ),
+        ut equal to( DST_END_JMP - 1800 ),
+        "list: ambiguous time uses first (EDT) by default"
+    );
+    ut assert that(
+        Expr( result[2] ),
+        ut equal to( JAN_2024_UTC ),
+        "list: unambiguous January time correct"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — invalid input ─────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - invalid input", Expr(
+
+    t = JAN_2024_UTC;
+
+    ut assert that(
+        Expr( ns:MakeLocalToUTCFormula( Expr( t ), "current_offset", "scalar" ) ),
+        ut throws( ut anything() ),
+        "current_offset is not valid — caller must resolve to UTC±H first"
+    );
+
+    ut assert that(
+        Expr( ns:MakeLocalToUTCFormula( Expr( t ), "server", "scalar" ) ),
+        ut throws( ut anything() ),
+        "server is not valid — caller must resolve to UTC±H first"
+    );
+
+    ut assert that(
+        Expr( ns:MakeLocalToUTCFormula( Expr( t ), "UTC-5", "bad_type" ) ),
+        ut throws( ut anything() ),
+        "invalid outputType throws"
+    );
+
+    ut assert that(
+        Expr( ns:MakeLocalToUTCFormula( Expr( t ), "UTC-5", "scalar", "bad_ambiguous" ) ),
+        ut throws( ut anything() ),
+        "invalid ambiguous throws"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — unknown zone ──────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - unknown zone", Expr(
+
+    t = JAN_2024_UTC;
+    formula = ns:MakeLocalToUTCFormula( Expr( t ), "Zone/DoesNotExist", "scalar" );
+    ut assert that(
+        Expr( Eval( formula ) ),
+        ut equal to( JAN_2024_UTC ),
+        "Unknown zone returns value unchanged"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — matrix ────────────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - matrix", Expr(
+
+    // Single column matrix — unambiguous times
+    times = Matrix( {JAN_2024_EST, JUL_2024_EDT} );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "America/New_York", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 2 ),
+        "matrix: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 1 ),
+        "matrix: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_UTC ),
+        "matrix [1,1]: EST -> UTC correct"
+    );
+    ut assert that(
+        Expr( result[2, 1] ),
+        ut equal to( JUL_2024_UTC ),
+        "matrix [2,1]: EDT -> UTC correct"
+    );
+
+    // Fixed offset matrix
+    times = Shape( Matrix( {JAN_2024_EST, JUL_2024_EDT, JAN_2024_IST, JUL_2024_UTC} ), 2, 2 );
+    formula = ns:MakeLocalToUTCFormula( Expr( times ), "UTC-5", "matrix" );
+    result = Eval( formula );
+
+    ut assert that(
+        Expr( N Row( result ) ),
+        ut equal to( 2 ),
+        "2x2 fixed offset: row count preserved"
+    );
+    ut assert that(
+        Expr( N Col( result ) ),
+        ut equal to( 2 ),
+        "2x2 fixed offset: column count preserved"
+    );
+    ut assert that(
+        Expr( result[1, 1] ),
+        ut equal to( JAN_2024_UTC ),
+        "2x2 fixed offset [1,1]: correct"
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — round trip ────────────────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - round trip", Expr(
+
+    // UTC -> local -> UTC should return original value for unambiguous times
+    // America/New_York
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC, DST_START_JMP, DST_END_JMP + 3600} );
+    utcToLocal = ns:MakeUTCToLocalFormula( Expr( times ), "America/New_York", "list" );
+    localTimes = Eval( utcToLocal );
+
+    localToUtc = ns:MakeLocalToUTCFormula( Expr( localTimes ), "America/New_York", "list" );
+    roundTrip = Eval( localToUtc );
+
+    For( i = 1, i <= N Items( times ), i++,
+        ut assert that(
+            Expr( roundTrip[i] ),
+            ut equal to( times[i] ),
+            "round trip " || Char( i ) || ": UTC -> local -> UTC matches original"
+        )
+    );
+
+    // Asia/Kolkata — fixed zone, should always round trip cleanly
+    times = Eval List( {JAN_2024_UTC, JUL_2024_UTC} );
+    utcToLocal = ns:MakeUTCToLocalFormula( Expr( times ), "Asia/Kolkata", "list" );
+    localTimes = Eval( utcToLocal );
+    localToUtc = ns:MakeLocalToUTCFormula( Expr( localTimes ), "Asia/Kolkata", "list" );
+    roundTrip = Eval( localToUtc );
+
+    For( i = 1, i <= N Items( times ), i++,
+        ut assert that(
+            Expr( roundTrip[i] ),
+            ut equal to( times[i] ),
+            "India round trip " || Char( i ) || ": UTC -> local -> UTC matches original"
+        )
+    );
+
+));
+
+// ── MakeLocalToUTCFormula — comprehensive coverage ────────────────────────────
+ut test( tzFormulaCase, "MakeLocalToUTCFormula - comprehensive coverage", Expr(
+
+    // Generate 100 unambiguous UTC dates across the tzData window
+    // then convert to local and back to verify round-trip for each zone
+    windowStart = Date MDY( 1, 1, 2016 );
+    windowEnd   = Date MDY( 1, 1, 2026 );
+    nDates      = 100;
+    step        = ( windowEnd - windowStart ) / nDates;
+
+    utcDates = Eval List(
+        Transform Each( {i}, 1 :: nDates,
+            windowStart + ( i - 1 ) * step
+        )
+    );
+
+    // For each zone, convert UTC->local then local->UTC and verify round trip
+    // Skip dates that fall in the ambiguous hour since those can't round trip cleanly
+
+    zones = {"America/New_York", "Asia/Kolkata", "America/St_Johns",
+             "Europe/London", "Asia/Kathmandu"};
+
+    For Each( {zone}, zones,
+
+        utcToLocal = ns:MakeUTCToLocalFormula( Expr( utcDates ), zone, "list" );
+        localDates = Eval( utcToLocal );
+
+        localToUtc = ns:MakeLocalToUTCFormula( Expr( localDates ), zone, "list" );
+        roundTrip  = Eval( localToUtc );
+
+        allMatch = 1;
+        For( i = 1, i <= N Items( utcDates ), i++,
+            If( roundTrip[i] != utcDates[i],
+                allMatch = 0;
+                Print( zone || " round trip mismatch at " ||
+                    Format Date( utcDates[i], "yyyy-mm-ddThh:mm:ss" ) ||
+                    " local=" || Format Date( localDates[i], "yyyy-mm-ddThh:mm:ss" ) ||
+                    " back=" || Format Date( roundTrip[i], "yyyy-mm-ddThh:mm:ss" )
+                )
+            )
+        );
+
+        ut assert that(
+            Expr( allMatch ),
+            ut equal to( 1 ),
+            zone || ": all 100 dates round trip correctly"
+        );
+    );
+
+));

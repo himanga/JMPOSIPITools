@@ -99,8 +99,12 @@ ns:BuildTableFromPointStreamSets = function({conn, pointIDs, streamEndpoint, par
 // to work around the hard API row limit of (endTime-startTime)/interval <= 150000
 ns:GetValidStartAndEndTimes = function({conn, startTime, endTime, interval, endInclusive=1},
 	{DEFAULT LOCAL},
+ns:toLogConn(conn,"GetValidStartAndEndTimes", Expr(startTime));
+ns:toLogConn(conn,"GetValidStartAndEndTimes", Expr(endTime));
 	{interval} = ns:PiDurationToSeconds(conn, evalList({interval}));
 	{startTime, endTime} = ns:PiTimeToTimestamp(conn, evalList({startTime, endTime}), 1);
+ns:toLogConn(conn,"GetValidStartAndEndTimes", Expr(startTime));
+ns:toLogConn(conn,"GetValidStartAndEndTimes", Expr(endTime));
 	totalTime = endTime-startTime;
 	newStartTime = startTime;
 	newTimes = {};
@@ -120,6 +124,7 @@ ns:GetValidStartAndEndTimes = function({conn, startTime, endTime, interval, endI
 		);
 		newStartTime = newEndTime + if(endInclusive, 0, interval);
 	);
+ns:toLogConn(conn,"GetValidStartAndEndTimes", Expr(newTimes));
 	Return(newTimes)
 );
 
@@ -286,9 +291,8 @@ ns:GetInterpolatedValuesTable = function({conn, pointIDs, pointNames, startTime,
 		NewColumn( "svalue", Character),
 		NewColumn( "status", Character)
 	);
-
 	ranges = ns:GetValidStartAndEndTimes(conn, startTime, endTime, interval, endInclusive=0);
-
+ns:toLogConn(conn,"GetInterpolatedValuesTable", Expr( ranges ) );
 	For(i=1, i<=NItems(pointIDs), i++,
 		interpolatedValues = ns:GetInterpolatedValues(conn, pointIDs[i], ranges, interval);
 		pointName = pointNames[i];

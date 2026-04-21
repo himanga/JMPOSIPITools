@@ -1,0 +1,24 @@
+/* About: Test Configuration Defaults
+
+Default test environment configuration. Copy this file to
+testConfig.local.jsl (gitignored) and fill in values for your
+environment before running network-dependent tests.
+
+Section: Globals
+*/
+
+// IANA timezone of the PI server being tested against
+testServerTimezone = "America/Chicago";
+
+// IANA timezone of the machine running the tests
+testClientTimezone = "America/Chicago";
+
+// Current UTC offset of the client machine in minutes
+// Positive = behind UTC (west), negative = ahead (east)
+// e.g. CDT = -300, EST = -300, IST = -330, JST = -540
+// Update when DST transitions occur
+testClientOffsetMins = -300;
+
+// Current UTC offset of the PI server in minutes
+// Same sign convention as testClientOffsetMins
+testServerOffsetMins = -300;

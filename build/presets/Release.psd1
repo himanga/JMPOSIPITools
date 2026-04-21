@@ -9,6 +9,7 @@ Section: Globals
 @{
     Steps = @(
         'Prepare'
+        'TzData'
         'MakeDir'
         'Docs'
         'Package'

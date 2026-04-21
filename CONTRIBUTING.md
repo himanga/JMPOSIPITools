@@ -13,20 +13,52 @@ To make changes to and rebuild this add-in, you will need:
 - **git**
 - **GitHub account**
 
-### Internet Access and Proxy Configuration
+### Timezone Data Build Configuration
 
-The `TzData` build step and the "Refresh timezone data" button in the
-add-in both download timezone data from GitHub and require internet access.
+The `TzData` build step downloads timezone data from GitHub by running
+`tzBuilder.jsl` in a headless JMP session. If your network requires a
+proxy server, you can configure it for this step without affecting the
+rest of JMP by setting `$TzDataPreJSL` and `$TzDataPostJSL` in your
+`build/buildConfig.local.ps1` file.
 
-If your environment uses a proxy server, configure it in JMP before running:
+These variables contain raw JSL that is injected into the temporary
+script that runs `tzBuilder.jsl`. `$TzDataPreJSL` runs before the
+download and `$TzDataPostJSL` runs after, regardless of whether the
+download succeeded.
 
-1. In JMP, go to **File > Preferences > Internet**
-2. Fill in the proxy server hostname and port
-3. For the username, either enter your credentials or use `:` for
-   Kerberos/Windows authentication (no username or password required)
+A typical use is to save the current JMP proxy settings, apply corporate
+proxy settings for the download, then restore the originals:
 
-Without this configuration the timezone data download will fail silently
-and `tzData.jsl` will not be updated.
+```powershell
+$TzDataPreJSL  = @'
+global:existingproxyserver = Get Preferences (Proxy Server);
+global:existingproxyport   = Get Preferences (Proxy Port);
+global:existingproxyuser   = Get Preferences (Proxy User);
+global:existingbypassproxy = Get Preferences (Bypass Proxy);
+Preferences[1] << Set( Proxy Server( "http://proxy.example.com" ) );
+Preferences[1] << Set( Proxy Port( 80 ) );
+Preferences[1] << Set( Proxy User( ":" ) );
+Preferences[1] << Set( Bypass Proxy( "" ) );
+'@
+$TzDataPostJSL = @'
+Preferences[1] << Set( Proxy Server( global:existingproxyserver ) );
+Preferences[1] << Set( Proxy Port( global:existingproxyport ) );
+Preferences[1] << Set( Proxy User( global:existingproxyuser ) );
+Preferences[1] << Set( Bypass Proxy( global:existingbypassproxy ) );
+'@
+```
+
+Use `":"` as the proxy username for Kerberos/Windows authentication.
+
+Note that these proxy settings apply only to the headless JMP session
+that runs `tzBuilder.jsl`. They do not affect the unit test session or
+your normal JMP environment. The unit test session connects directly to
+the PI server and will fail if a proxy is configured in JMP — disable
+the proxy in JMP preferences before running the `Test` build step if
+your machine requires one for internet access.
+
+See `build/buildConfig.ps1` for all available configuration variables
+and their defaults.
 
 ## Steps to Contribute
 
@@ -52,6 +84,20 @@ There are two build scripts in the `build\` folder:
 
 Both scripts read their configuration from `build\buildConfig.ps1`. The `.jmpaddin` output file is named automatically as `JMPOSIPITools_{version}_{state}.jmpaddin`.
 
+### Network Test Configuration
+
+Network-dependent tests require a `Tests/testConfig.local.jsl` file
+(gitignored). Copy `Tests/testConfig.default.jsl` and fill in values
+for your environment:
+
+- `testServerTimezone` — IANA timezone of the PI server
+- `testClientTimezone` — IANA timezone of this machine
+- `testClientOffsetMins` — current UTC offset of this machine in minutes
+  (positive = west of UTC, e.g. CDT = -300)
+- `testServerOffsetMins` — current UTC offset of the PI server in minutes
+
+Update `testClientOffsetMins` and `testServerOffsetMins` when DST transitions occur.
+
 ### Known Issues
 
 **JMP 20 — script execution when JMP is already open**
@@ -64,6 +110,20 @@ includes `Test` or `TzData` steps.
 
 This does not affect JMP 18 or 19. The issue has been reported to
 JMP support.
+
+**JMP proxy configuration conflicts with network tests**
+
+The `TzData` build step downloads timezone data from GitHub and requires
+a proxy server configured in JMP (File > Preferences > Internet) if your
+network uses one. However, the unit test suite includes network tests that
+connect directly to a PI server — these will fail if the JMP proxy is
+configured, because the proxy will intercept the PI connection.
+
+If both apply to your environment:
+- Run the `TzData` step separately with the proxy enabled in JMP
+- Disable the proxy in JMP preferences before running the `Test` step
+- Use the custom build step selector (press [C] in `buildInteractive.ps1`)
+  to run `TzData` and `Test` as separate builds
 
 ## Versioning
 

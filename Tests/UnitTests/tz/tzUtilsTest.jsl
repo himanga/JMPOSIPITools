@@ -1,0 +1,428 @@
+﻿/* About: Timezone Utility Tests
+
+Unit tests for functions in tzUtils.jsl.
+
+Section: Tests
+All tests use real tzData.jsl — no synthetic data needed.
+Requires tzData.jsl to have been populated by tzBuilder.jsl.
+*/
+
+ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+
+/* Constants: Test Dates
+
+    JAN_2024_UTC  - 2024-01-15 12:00:00 UTC — Eastern standard time (UTC-5)
+    JUL_2024_UTC  - 2024-07-15 12:00:00 UTC — Eastern daylight time (UTC-4)
+    DST_START_JMP - 2024-03-10 07:00:00 UTC — moment DST starts in Eastern
+                    Unix 1710054000 = JMP 3792898800
+    DST_END_JMP   - 2024-11-03 06:00:00 UTC — moment DST ends in Eastern
+                    Unix 1730613600 = JMP 3813458400
+*/
+JAN_2024_UTC  = Date MDY( 1, 15, 2024 ) + In Hours( 12 );
+JUL_2024_UTC  = Date MDY( 7, 15, 2024 ) + In Hours( 12 );
+DST_START_JMP = 3792898800;
+DST_END_JMP   = 3813458400;
+
+tzUtilsCase = ut test case( "tzUtils" )
+    << Setup( Expr(
+		loaded = ns:LoadTzData();
+        If( !loaded,
+            Throw( "tzData.jsl has not been populated - run tzBuilder.jsl first" )
+        );
+    ) )
+    << Teardown( Expr(
+        ns = Namespace( "com.github.himanga.JMPOSIPITools.addinnamespace" );
+        ns:LoadTzData();
+    ) );
+
+// ── LoadTzData ────────────────────────────────────────────────────────────────
+ut test( tzUtilsCase, "LoadTzData", Expr(
+
+    ut assert that(
+        Expr( N Items( ns:tzData ) ),
+        ut greater than( 100 ),
+        "Real data should have hundreds of zones"
+    );
+
+    ut assert that(
+        Expr( Contains( ns:tzData, "UTC" ) ),
+        ut equal to( 1 ),
+        "UTC zone is present"
+    );
+
+    ut assert that(
+        Expr( Contains( ns:tzData, "America/New_York" ) ),
+        ut equal to( 1 ),
+        "America/New_York is present"
+    );
+
+    ut assert that(
+        Expr( Contains( ns:tzData, "Asia/Kolkata" ) ),
+        ut equal to( 1 ),
+        "Asia/Kolkata is present"
+    );
+
+    // Calling a second time should return from cache without reloading
+    countBefore = N Items( ns:tzData );
+    ns:LoadTzData();
+    ut assert that(
+        Expr( N Items( ns:tzData ) ),
+        ut equal to( countBefore ),
+        "LoadTzData is idempotent"
+    );
+
+));
+
+// ── FormatOffsetMinutes ───────────────────────────────────────────────────────
+ut test( tzUtilsCase, "FormatOffsetMinutes", Expr(
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( 300 ) ),
+        ut equal to( "UTC-5" ),
+        "UTC-5 (offset=300, positive=behind)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( -330 ) ),
+        ut equal to( "UTC+5:30" ),
+        "UTC+5:30 India (offset=-330)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( 0 ) ),
+        ut equal to( "UTC+0" ),
+        "UTC zero offset"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( -345 ) ),
+        ut equal to( "UTC+5:45" ),
+        "UTC+5:45 Nepal (offset=-345)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( 210 ) ),
+        ut equal to( "UTC-3:30" ),
+        "UTC-3:30 Newfoundland (offset=210)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( -60 ) ),
+        ut equal to( "UTC+1" ),
+        "UTC+1 whole hour (offset=-60)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( -540 ) ),
+        ut equal to( "UTC+9" ),
+        "UTC+9 Tokyo (offset=-540)"
+    );
+
+    ut assert that(
+        Expr( ns:FormatOffsetMinutes( 720 ) ),
+        ut equal to( "UTC-12" ),
+        "UTC-12 westernmost zone (offset=720)"
+    );
+
+));
+
+// ── ResolveZoneName ───────────────────────────────────────────────────────────
+ut test( tzUtilsCase, "ResolveZoneName", Expr(
+
+    ut assert that(
+        Expr( ns:ResolveZoneName( "America/New_York" ) ),
+        ut equal to( "America/New_York" ),
+        "Canonical name returns unchanged"
+    );
+
+    ut assert that(
+        Expr( ns:ResolveZoneName( "UTC" ) ),
+        ut equal to( "UTC" ),
+        "UTC returns unchanged"
+    );
+
+    // Links table is empty in unpacked format so unknown names return unchanged
+    ut assert that(
+        Expr( ns:ResolveZoneName( "Zone/DoesNotExist" ) ),
+        ut equal to( "Zone/DoesNotExist" ),
+        "Unknown name returns unchanged"
+    );
+
+));
+
+// ── GetOffsetForTimeZone — UTC ─────────────────────────────────────────────────
+ut test( tzUtilsCase, "GetOffsetForTimeZone - UTC", Expr(
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "UTC", JAN_2024_UTC ) ),
+        ut equal to( 0 ),
+        "UTC zone always returns zero offset in January"
+    );
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "UTC", JUL_2024_UTC ) ),
+        ut equal to( 0 ),
+        "UTC zone always returns zero offset in July"
+    );
+
+));
+
+// ── GetOffsetForTimeZone — DST zone ───────────────────────────────────────────
+ut test( tzUtilsCase, "GetOffsetForTimeZone - America/New_York", Expr(
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", JAN_2024_UTC ) ),
+        ut equal to( 300 ),
+        "Eastern standard time is UTC-5 (offset=300)"
+    );
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", JUL_2024_UTC ) ),
+        ut equal to( 240 ),
+        "Eastern daylight time is UTC-4 (offset=240)"
+    );
+
+    // DST boundary — one second before spring forward
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", DST_START_JMP - 1 ) ),
+        ut equal to( 300 ),
+        "One second before DST start is still standard time"
+    );
+
+    // Exactly at spring forward
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", DST_START_JMP ) ),
+        ut equal to( 240 ),
+        "Exactly at DST start is DST time"
+    );
+
+    // One second before fall back
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", DST_END_JMP - 1 ) ),
+        ut equal to( 240 ),
+        "One second before DST end is still DST time"
+    );
+
+    // Exactly at fall back
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/New_York", DST_END_JMP ) ),
+        ut equal to( 300 ),
+        "Exactly at DST end is standard time"
+    );
+
+));
+
+// ── GetOffsetForTimeZone — fixed zones ────────────────────────────────────────
+ut test( tzUtilsCase, "GetOffsetForTimeZone - fixed zones", Expr(
+
+    // India — UTC+5:30, no DST
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "Asia/Kolkata", JAN_2024_UTC ) ),
+        ut equal to( -330 ),
+        "India is always UTC+5:30 in January"
+    );
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "Asia/Kolkata", JUL_2024_UTC ) ),
+        ut equal to( -330 ),
+        "India is always UTC+5:30 in July"
+    );
+
+    // Nepal — UTC+5:45, no DST
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "Asia/Kathmandu", Today() ) ),
+        ut equal to( -345 ),
+        "Nepal is always UTC+5:45"
+    );
+
+    // Tokyo — UTC+9, no DST
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "Asia/Tokyo", JAN_2024_UTC ) ),
+        ut equal to( -540 ),
+        "Tokyo is always UTC+9"
+    );
+
+    // Newfoundland — UTC-3:30 standard (has DST but test in winter)
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "America/St_Johns", JAN_2024_UTC ) ),
+        ut equal to( 210 ),
+        "Newfoundland standard time is UTC-3:30"
+    );
+
+));
+
+// ── GetOffsetForTimeZone — unknown zone ───────────────────────────────────────
+ut test( tzUtilsCase, "GetOffsetForTimeZone - unknown zone", Expr(
+
+    ut assert that(
+        Expr( ns:GetOffsetForTimeZone( "Zone/DoesNotExist", JAN_2024_UTC ) ),
+        ut equal to( 0 ),
+        "Unknown zone returns 0 and does not throw"
+    );
+
+));
+
+// ── UTC to local time conversion arithmetic ───────────────────────────────────
+ut test( tzUtilsCase, "UTC to local time conversion", Expr(
+
+    // Eastern standard — 12:00 UTC should be 07:00 local
+    ianaOffset = ns:GetOffsetForTimeZone( "America/New_York", JAN_2024_UTC );
+    ut assert that(
+        Expr( Format Date( JAN_2024_UTC - In Minutes( ianaOffset ), "yyyy-mm-ddThh:mm:ss" ) ),
+        ut equal to( "2024-01-15T07:00:00" ),
+        "Eastern standard: 12:00 UTC -> 07:00 local"
+    );
+
+    // Eastern DST — 12:00 UTC should be 08:00 local
+    ianaOffsetSummer = ns:GetOffsetForTimeZone( "America/New_York", JUL_2024_UTC );
+    ut assert that(
+        Expr( Format Date( JUL_2024_UTC - In Minutes( ianaOffsetSummer ), "yyyy-mm-ddThh:mm:ss" ) ),
+        ut equal to( "2024-07-15T08:00:00" ),
+        "Eastern DST: 12:00 UTC -> 08:00 local"
+    );
+
+    // India — 12:00 UTC should be 17:30 local
+    indiaOffset = ns:GetOffsetForTimeZone( "Asia/Kolkata", JUL_2024_UTC );
+    ut assert that(
+        Expr( Format Date( JUL_2024_UTC - In Minutes( indiaOffset ), "yyyy-mm-ddThh:mm:ss" ) ),
+        ut equal to( "2024-07-15T17:30:00" ),
+        "India: 12:00 UTC -> 17:30 local"
+    );
+
+    // Tokyo — 12:00 UTC should be 21:00 local
+    tokyoOffset = ns:GetOffsetForTimeZone( "Asia/Tokyo", JAN_2024_UTC );
+    ut assert that(
+        Expr( Format Date( JAN_2024_UTC - In Minutes( tokyoOffset ), "yyyy-mm-ddThh:mm:ss" ) ),
+        ut equal to( "2024-01-15T21:00:00" ),
+        "Tokyo: 12:00 UTC -> 21:00 local"
+    );
+
+    // UTC — no conversion, time unchanged
+    utcOffset = ns:GetOffsetForTimeZone( "UTC", JAN_2024_UTC );
+    ut assert that(
+        Expr( Format Date( JAN_2024_UTC - In Minutes( utcOffset ), "yyyy-mm-ddThh:mm:ss" ) ),
+        ut equal to( "2024-01-15T12:00:00" ),
+        "UTC: time unchanged"
+    );
+
+));
+
+// ── FormatTzLabel ─────────────────────────────────────────────────────────────
+ut test( tzUtilsCase, "FormatTzLabel", Expr(
+
+    // UTC — no DST, single offset
+    ut assert that(
+        Expr( ns:FormatTzLabel( "UTC" ) ),
+        ut equal to( "UTC UTC+0" ),
+        "UTC shows single zero offset"
+    );
+
+    // Fixed zone — no DST but used to have it
+    ut assert that(
+        Expr( ns:FormatTzLabel( "Asia/Tokyo" ) ),
+        ut equal to( "Asia/Tokyo UTC+9" ),
+        "Tokyo shows single offset — DST abolished in 1952"
+    );
+
+    // India — genuinely no DST, always UTC+5:30
+    ut assert that(
+        Expr( ns:FormatTzLabel( "Asia/Kolkata" ) ),
+        ut equal to( "Asia/Kolkata UTC+5:30" ),
+        "India shows single offset — no DST"
+    );
+
+    // DST zone — two offsets
+    ut assert that(
+        Expr( ns:FormatTzLabel( "America/New_York" ) ),
+        ut equal to( "America/New_York UTC-5 / UTC-4 DST" ),
+        "Eastern shows both standard and DST offsets"
+    );
+
+    // Unknown zone — returns name unchanged
+    ut assert that(
+        Expr( ns:FormatTzLabel( "Zone/NotInData" ) ),
+        ut equal to( "Zone/NotInData" ),
+        "Unknown zone returns name unchanged"
+    );
+
+));
+
+// ── TzLabelToIanaName ─────────────────────────────────────────────────────────
+ut test( tzUtilsCase, "TzLabelToIanaName", Expr(
+
+    ut assert that(
+        Expr( ns:TzLabelToIanaName( "Local (this machine)" ) ),
+        ut equal to( "current_offset" ),
+        "Local special value"
+    );
+
+    ut assert that(
+        Expr( ns:TzLabelToIanaName( "America/New_York UTC-5 / UTC-4 DST" ) ),
+        ut equal to( "America/New_York" ),
+        "Extracts IANA name from formatted DST zone label"
+    );
+
+    ut assert that(
+        Expr( ns:TzLabelToIanaName( "UTC UTC+0" ) ),
+        ut equal to( "UTC" ),
+        "UTC zone label"
+    );
+
+    ut assert that(
+        Expr( ns:TzLabelToIanaName( "Asia/Tokyo UTC+9" ) ),
+        ut equal to( "Asia/Tokyo" ),
+        "Fixed zone label"
+    );
+
+));
+
+// ── GetTzNamesForPicker ───────────────────────────────────────────────────────
+ut test( tzUtilsCase, "GetTzNamesForPicker", Expr(
+
+    allZones = ns:GetTzNamesForPicker( -840, 720 );
+
+    ut assert that(
+        Expr( allZones[1] ),
+        ut equal to( "Local (this machine)" ),
+        "First entry is always Local"
+    );
+
+    ut assert that(
+        Expr( N Items( allZones ) ),
+        ut greater than( 100 ),
+        "Full list has hundreds of zones"
+    );
+
+    // Filter to UTC-5 / UTC-4 range — should include Eastern
+    filteredEastern = ns:GetTzNamesForPicker( -360, -240 );
+    ut assert that(
+        Expr(
+            Sum( Transform Each( {z}, filteredEastern,
+                If( Contains( z, "America/New_York" ), 1, 0 )
+            ) )
+        ),
+        ut greater than( 0 ),
+        "America/New_York appears in UTC-5 to UTC-4 filter"
+    );
+
+    // Filter to UTC+5 / UTC+6 range — should include India
+    filteredIndia = ns:GetTzNamesForPicker( 300, 360 );
+    ut assert that(
+        Expr(
+            Sum( Transform Each( {z}, filteredIndia,
+                If( Contains( z, "Asia/Kolkata" ), 1, 0 )
+            ) )
+        ),
+        ut greater than( 0 ),
+        "Asia/Kolkata appears in UTC+5 to UTC+6 filter"
+    );
+
+    // Filter to impossible range — only special entries returned
+    filteredEmpty = ns:GetTzNamesForPicker( 850, 900 );
+    ut assert that(
+        Expr( N Items( filteredEmpty ) ),
+        ut equal to( 2 ),
+        "Out of range filter returns only the two special entries"
+    );
+
+));

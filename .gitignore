@@ -6,13 +6,15 @@ NaturalDocs/**
 AddinFiles/Docs/**
 !AddinFiles/Docs/Docs.txt
 
+# Build/test config files
+build/buildConfig.local.ps1
+Tests/testConfig.local.jsl
+
 # Build temp files
 /Tests/Results/**
-AddinFilesTempForBuild/**
-build/buildConfig.local.ps1
 AddinFilesTempForBuild/
 build/.last_addin
-temp-loadaddin.jsl
+temp-*
 
 # Any packaged files
 archive/**

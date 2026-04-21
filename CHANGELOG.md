@@ -5,14 +5,17 @@ Notable changes to this project are documented here.
 
 ### Added
 - Settings are saved to the output table and they can be recalled.
+- User picks time zone to return data in
 
 ### Changed
 - Behind the scenes: refactored code into smaller files
 - Behind the scenes: all query functions take inputs from parameters
+- Render README and CHANGELOG during build for cleaner view in the add-in
 
 ### Fixed
-- Render README and CHANGELOG during build for cleaner view in the add-in
 - JMP LivebBugs from earlier changes this release
+- Time zone offsets can be 15 min, not just full hours
+- Times are incorrect when the data set spans multiple time zones - the local time is corrected.
 
 ## [0.1303]
 

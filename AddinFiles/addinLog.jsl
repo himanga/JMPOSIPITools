@@ -87,3 +87,54 @@ ns:logusage = Function( {logmessage, allowupload = 1},
 	);
 	return(r);
 );
+
+/*
+    Function: ToLog
+        ---Prototype---
+        ns:ToLog( String level, String env, Any message, Number logToFile )
+        ---------------------------------------------------------------------
+        Writes a message to the JMP log when the given level is "debug".
+        When passed an expression, formats output like Show() showing both
+        the expression and its value. When passed a string, writes the
+        string directly. Optionally also writes to the add-in log file.
+
+    Parameters:
+    - level     - Log level string. Message is written when level is "debug".
+    - env       - Calling environment label, prepended to the message
+                  e.g. "GetRequest".
+    - message   - The message to write. If a string, written directly.
+                  If an expression, formatted as "expr = value".
+    - logToFile - Set to 1 to also write to the add-in log file via
+                  <ns:logusage>. Defaults to 0.
+
+    Examples:
+        > ns:ToLog( "debug", "GetRequest", request << GetLastURL );
+        > // [GetRequest] request << GetLastURL = "https://server/piwebapi/..."
+
+        > ns:ToLog( "debug", "MyFunction", "Starting process" );
+        > // [MyFunction] Starting process
+
+    Notes:
+        - Does nothing when level is not "debug".
+        - Pure side-effect function — no return value.
+*/
+ns:ToLog = Function( {level, env, message, logToFile = 0},
+    {msgExpr, msgVal, envPadded, fullMessage},
+    try(
+		If( Lowercase( level ) == "debug",
+		msgexpr = char( name expr( message) );
+		msgval = char( message );
+			envPadded = Char( env ) || Repeat( " ", max( 0, 25 - length(env) ) );
+			fullMessage = "\!N" || envPadded || "| " ||
+				If( msgexpr == msgval,
+					msgval,
+					msgexpr || " = " || msgval
+				);
+			Write( fullMessage );
+			If( logToFile,
+				ns:logusage( "DEBUG: " || fullMessage )
+			)
+		),
+		Write( "\!NToLog Failed" )
+	)
+);
