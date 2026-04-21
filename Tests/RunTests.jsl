@@ -12,6 +12,83 @@ Names Default To Here( 0 );
 // Show results
 //
 
-ut global reporter = ut collecting reporter();
+Include( pathToTests || "testConfig.default.jsl" );
+If( File Exists( pathToTests || "testConfig.local.jsl" ),
+    Include( pathToTests || "testConfig.local.jsl" )
+);
+
+if(Length(Loc(namespace("global") << get keys, "ut data table reporter"))>0,
+	here:hasdtreporter = 1,
+	here:hasdtreporter = 0
+);
+
+if(here:hasdtreporter,
+	ut global reporter = ut data table reporter(),
+	ut global reporter = ut collecting reporter()
+);
+
 ut include jsl files recursively( "UnitTests" );
-ut global reporter << show report;
+
+if(here:hasdtreporter,
+	dtResults = ut global reporter << Get table reference;
+	dtResults << New Column("JSON", Character, "None", Formula(
+		Substitute(As JSON Expr(Associative Array(
+			{"Case Name", "Test Name", "Assertion Label", "Assertion ID", "test expr", "description", "skipdescription", 
+				"lre", "mismatch", "payload", "result"}, 
+			Eval List({:Case Name, :Test Name, :Assertion Label, :Assertion ID, :test expr, :description, :skipdescription, 
+				:lre, :mismatch, :payload, :result}))), 
+			",\!"",
+			",\!N\!""
+		)
+	));
+	try( dtFailures = dtResults << Subset("invisible",
+		Copy formula( 0 ),
+		Filtered Rows( :result == "failure" ),
+		columns(
+			:Case Name, :Test Name, :Assertion Label, :Assertion ID, :test expr,
+			:description, :skipdescription, :lre, :mismatch, :payload, :result, :JSON
+		)
+	) );
+	try( dtThrows = dtResults << Subset("invisible",
+		Copy formula( 0 ),
+		Filtered Rows( :result == "unexpected throw" ),
+		columns(
+			:Case Name, :Test Name, :Assertion Label, :Assertion ID, :test expr,
+			:description, :skipdescription, :lre, :mismatch, :payload, :result, :JSON
+		)
+	) );
+
+	New Window("Test Results",
+		Show Menu( 0 ), Show Toolbars( 0 ),
+		v list box(
+			h list box(
+				df = dtResults << Data Filter(
+					Location( {520, 155} ),
+					Mode( Select( 0 ), Show( 1 ) ),
+					Add Filter(
+						columns( :result ),
+						Display( :result, N Items( 3 ), "List Display" )
+					)
+				),
+			),
+			Outline box("Unexpected Throws", << Close, try( 
+				tbThrows = dtThrows << new data box;
+				tbThrows << close side panels;
+				tbThrows;
+			) ),
+			Outline box("Failures", << Close, try( 
+				tbFailures = dtFailures << new data box;
+				tbFailures << close side panels;
+				tbFailures
+			) ),
+			Outline box("All Results", << Close,
+				tbResults = dtResults << new data box;
+				tbResults << close side panels;
+				tbResults
+			)
+		),
+		<< On Close(try({dtResults, dtFailures, dtThrows} << close window));
+	),
+	ut global reporter << new data view();
+	ut global reporter << show report;
+);

@@ -1,67 +1,54 @@
+/* About: Time Utility Tests
+
+Unit tests for functions in timeUtils.jsl.
+
+Section: Tests
+*/
 ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
 
 ut test( "timeUtils", "UrlEncode", Expr(
 
-    //
-    // Basic correctness
-    //
-
-    ut assert value(
-        ns:UrlEncode( "hello world" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "hello world" ) ),
         ut equal to( "hello%20world" ),
         "Encodes space as %20"
     );
 
-    ut assert value(
-        ns:UrlEncode( "100%" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "100%" ) ),
         ut equal to( "100%25" ),
         "Encodes percent sign"
     );
 
-    ut assert value(
-        ns:UrlEncode( "a+b" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "a+b" ) ),
         ut equal to( "a%2Bb" ),
         "Encodes plus sign"
     );
 
-    ut assert value(
-        ns:UrlEncode( "A&B" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "A&B" ) ),
         ut equal to( "A%26B" ),
         "Encodes ampersand"
     );
 
-    ut assert value(
-        ns:UrlEncode( "(test)" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "(test)" ) ),
         ut equal to( "%28test%29" ),
         "Encodes parentheses"
     );
 
-
-    //
-    // Ordering / interaction
-    //
-
-    ut assert value(
-        ns:UrlEncode( "% +" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "% +" ) ),
         ut equal to( "%25%20%2B" ),
         "Encodes % before other characters"
     );
 
-
-    //
-    // Identity cases
-    //
-
-    ut assert value(
-        ns:UrlEncode( "abcXYZ123" ),
+    ut assert that(
+        Expr( ns:UrlEncode( "abcXYZ123" ) ),
         ut equal to( "abcXYZ123" ),
         "Leaves unreserved characters unchanged"
     );
-
-
-    //
-    // Error handling
-    //
 
     ut assert that(
         Expr( ns:UrlEncode() ),
@@ -90,9 +77,10 @@ timeUtilsTestCase = ut test case( "timeUtils" )
         conn = ns:MakeConnection(
             ns:UserPref["Base_Url"],
             ns:UserPref["PI_Server"],
-            0,  //live
+            0,                               // live
             num( ns:UserPref["Max_Rows"] ),
-            "no" //allow insecure
+            "no",                            // allowInsecure
+            "current_offset"                 // timeZone
         );
     ));
 
@@ -100,10 +88,10 @@ ut test( timeUtilsTestCase, "ParseDateString", Expr(
 
     expectedLocal = ParseDate( "2024-01-02T12:34:56" ) + ns:GetLocalTimeZoneDifference( conn );
 
-    ut assert value(
-        ns:ParseDateString( conn, "2024-01-02T12:34:56Z" ),
-        ut equal to( expectedLocal ),
-        "Z-suffix timestamps should convert from UTC to local time"
+    ut assert that(
+        Expr( ns:ParseDateString( conn, "2024-01-02T12:34:56Z" ) ),
+        ut equal to( ParseDate( "2024-01-02T12:34:56" ) ),
+        "Z-suffix timestamps should be parsed as UTC"
     );
 
     ut assert value(
@@ -147,18 +135,11 @@ ut test( timeUtilsTestCase, "ToDateString", Expr(
     );
 
     ut assert that(
-        Expr(
-            ns:ToDateString( conn,
-                Date DMY( 1, 1, 2020 ) + in hours(12)
-            )
-        ),
-        ut equal to(
-            Format Date(
-                Date DMY( 1, 1, 2020 ) + in hours(12) - ns:GetLocalTimeZoneDifference( conn ),
-                "yyyy-mm-ddThh:mm:ss"
-            ) || "Z"
-        ),
-        "Returns the right date for a known time"
+        Expr( ns:ToDateString( conn,
+            Date DMY( 1, 1, 2020 ) + In Hours( 12 )
+        ) ),
+        ut equal to( "2020-01-01T12:00:00Z" ),
+        "Returns the date as-is with Z suffix"
     );
 
     ut assert that(
@@ -192,8 +173,8 @@ ut test( timeUtilsTestCase, "GetLocalTimeZoneDifference", Expr(
     first  = ns:GetLocalTimeZoneDifference( conn );
     second = ns:GetLocalTimeZoneDifference( conn );
 
-    ut assert value(
-        first,
+    ut assert that(
+        Expr( first ),
         ut equal to( second ),
         "Returns cached value on subsequent calls"
     );
@@ -270,8 +251,8 @@ ut test( timeUtilsTestCase, "PiTimeToTimestamp", Expr(
     );
 
     ut assert that(
-        Expr( Eval( Eval Expr( Type( Expr(ns:PiTimeToTimestamp( conn, {"*"}, 1 ))[1] ) ) ) ),
-        ut any of( { ut equal to( "Number" ), ut equal to( "Integer" ) } ),
+        Expr( Eval( Eval Expr( Type( Expr( ns:PiTimeToTimestamp( conn, {"*"}, 1 ) )[1] ) ) ) ),
+        ut any of( { ut equal to( "Number" ), ut equal to( "Integer" ), ut equal to( "Date" ) } ),
         "Parsed timestamps return numeric JMP dates"
     );
 

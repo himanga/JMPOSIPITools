@@ -119,7 +119,7 @@ nw = New Window( "Get Aveva PI Data",
 					//Second column on the top
 					V List Box(
 						
-						panelbox("Data Range",
+						panelbox("Data Range (Always in the PI Server's Time)",
 							//Start, end, and interval times
 							lb_querytimes = V List Box(
 								
@@ -147,14 +147,16 @@ nw = New Window( "Get Aveva PI Data",
 									sbDefault(),
 									stdtxtInput( varname = "TimeStart",
 										descmsg = "Start Time", initval = "t - 1d", 
-										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'. "
+											|| "This is always evaluated in the pi server's time zone no matter what timezone is output.",
 										fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
 								),
 								lb_endtime = V List Box(
 									sbDefault(),
 									stdtxtInput( varname = "TimeEnd",
 										descmsg = "End Time", initval = "*", 
-										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'.",
+										helpmsg = "Enter a time in any PI Format, or example 'y-1d' or '2017-01-01'. "
+											|| "This is always evaluated in the pi server's time zone no matter what timezone is output.",
 										fn = function( {this}, cb_times << Set ( 1 ); UpdateOutput(); ) ),
 								),
 								
@@ -279,10 +281,62 @@ nw = New Window( "Get Aveva PI Data",
 							) )
 						),
 						
+						// Section: Timezone and logging
+						H List Box(
+							tbDesc( "Time\!NZone",
+								"Timezone for the time column in the output table." ||
+								"\!N\!NClick 'Change...' to select a different timezone." ||
+								"\!N\!NChange the default in User Preferences.",
+								wdth = 40
+							),
+							sbDefault(),
+							V Center Box(
+								tb_timezone_display = Text Box(
+									If(
+										ns:UserPref["Default_TimeZone"] == "current_offset",
+											"Current UTC offset of this machine",
+										ns:FormatTzLabel( ns:UserPref["Default_TimeZone"] )
+									),
+									<< Set Width( 120 )
+								)
+							),
+							sbDefault(),
+							V Center Box(
+								stdLinkBox( "Change...", Function( {},
+									ns:ToLog( cb_loglevel << Get Text, "window", "Change Timezone" );
+									ShowTimezonePicker(
+										ns:TzLabelToIanaName( tb_timezone_display << Get Text ),
+										Function( {ianaName},
+											tb_timezone_display << Set Text(
+												If(
+													ianaName == "current_offset", "Current UTC offset of this machine",
+													ns:FormatTzLabel( ianaName )
+												)
+											);
+											UpdateOutput();
+										)
+									)
+								) )
+							),
+							spacer box( size( 14,1 ) ),
+							bbHelp(
+								"Timezone for the time column in the output table." ||
+								"\!N\!N'Local (this machine)' uses the current UTC offset of this machine " ||
+								"at the time the script runs. Accurate for current data but may be wrong " ||
+								"for historical data spanning a DST transition." ||
+								"\!N\!NFor accurate results across DST transitions, select a named IANA " ||
+								"timezone such as 'America/Chicago UTC-6 / UTC-5 DST'." ||
+								"\!N\!NChange the default in User Preferences."
+							)
+						),
+						Spacer Box( Size( 2, 2 ) ),
 						//Save tag names in column notes
 						Spacer Box( Size( 2, 2 ) ), 
 						H List Box(
-							cb_tagtonotes = Check Box( "Save tag names in column notes.", UpdateOutput() ),
+							v list box(
+								chk_tagtonotes = Check Box( "Save tag names in column notes.", UpdateOutput() ),
+								spacer box(size(227,1)) //keep help lined up
+							),
 							sbDefault(),
 							bbHelp("When checked tag names are saved under the 'notes' property of a column.  Find " ||
 								"this under Column Info."
@@ -294,26 +348,38 @@ nw = New Window( "Get Aveva PI Data",
 								V List Box(
 									H List Box(
 										V List Box(
+											Spacer box( Size( 70, 1 ) ),
 											H List Box(
-												cb_returnvaluedefault = Check Box( "value", UpdateOutput() );
+												cb_returnvaluedefault = Check Box( "value",
+													UpdateOutput();
+													tb_updatedefaults << Font Color( "red" );
+													tb_updatedefaults << Set Font Style( "bold" );
+												);
 												cb_returnvaluedefault << Set(1);
 												cb_returnvaluedefault,
 												
 											),
 											H List Box(
-												cb_returnsvaluedefault = Check Box( "svalue", UpdateOutput() );
+												cb_returnsvaluedefault = Check Box( "svalue",
+													UpdateOutput();
+													tb_updatedefaults << Font Color( "red" );
+													tb_updatedefaults << Set Font Style( "bold" );
+												);
 												cb_returnsvaluedefault << Set(0);
 												cb_returnsvaluedefault,
 											),
 											H List Box(
-												cb_returnstatusdefault = Check Box( "status", UpdateOutput() );
+												cb_returnstatusdefault = Check Box( "status",
+													UpdateOutput();
+													tb_updatedefaults << Font Color( "red" );
+													tb_updatedefaults << Set Font Style( "bold" );
+												);
 												cb_returnstatusdefault << Set(0);
 												cb_returnstatusdefault,
 											),
 										),
-										sbDefault(),
 										V Center Box( Mouse Box(
-											Text Box( "Update current table to match defaults",
+											tb_updatedefaults = Text Box( "Update current table to match defaults",
 												//<< Set Font Size ( 10 ),
 												<< Font Color ( "blue" ),
 												<< Padding( Left( 20 ) ),
@@ -331,6 +397,8 @@ nw = New Window( "Get Aveva PI Data",
 											<< SetClickEnable( 1 ),
 											<< SetClick( Function( {this, clickpt, event},
 													If(event == "Pressed", 
+														tb_updatedefaults << Set Font Style( "plain" );
+														tb_updatedefaults << Font Color( "blue" );
 														newrows = index(1,nrow(dtPoints),1);
 														dtPoints:Return value[newrows] = if( cb_returnvaluedefault << get, "Yes", "No" );
 														dtPoints:Return svalue[newrows] = if( cb_returnsvaluedefault << get, "Yes", "No" );
@@ -340,10 +408,11 @@ nw = New Window( "Get Aveva PI Data",
 										))
 									),
 									H List Box(
-										cb_hideprefix = Check Box( "Hide field type if only returning one.", UpdateOutput() );
-										cb_hideprefix << Set(0);
-										cb_hideprefix,
-									)
+										chk_hideprefix = Check Box( "Hide field type if only returning one.", UpdateOutput() );
+										chk_hideprefix << Set(0);
+										chk_hideprefix,
+									),
+									spacer box( size( 227,1 ) ),
 								),
 								sbDefault(),
 								bbHelp("When checked new rows in the tags table on this screen will have a Yes under that column.  " ||
@@ -402,6 +471,15 @@ nw = New Window( "Get Aveva PI Data",
 					),
 					Spacer Box( Size( 20,20 ) ),
 					V List Box(
+						stdcbInput(
+							descmsg = "Log Level", 
+							varname = "cb_loglevel",
+							values = { "None", "Debug" },
+							fn = function( {this = ., index = .},
+								UpdateOutput();
+							),
+							helpmsg = "Determines how much info is written to the log file.  Debug = tons of info."
+						),
 						Button Box( "Toggle Desktop Script Display",
 							if((hlbScriptDesktop << Get Visibility) == "Visible",
 								hlbScriptDesktop << Visibility("Collapse"),
@@ -470,9 +548,9 @@ nw = New Window( "Get Aveva PI Data",
 						Eval( Parse( JMPJSLout << get text ) );
 
 						Eval( Eval Expr(
-							dt << New Script( "JMP Desktop Data Source", Eval(JMPJSLout << get text) );
-							dt << New Script( "JMP Live Data Source", Eval(LiveJSLout << get text) );
-							dt << New Script( "Tag Table", Eval(dtPoints << Get Script) );
+							dt << New Script( "Tag Table", Expr(dtPoints << Get Script) );
+							dt << New Script( "JMP Desktop Data Source", Expr( Parse( JMPJSLout << get text ) ) );
+							dt << New Script( "JMP Live Data Source", Expr( Parse( LiveJSLout << get text ) ) );
 						) );
 					);
 					
@@ -488,7 +566,7 @@ nw = New Window( "Get Aveva PI Data",
 					// Find all open tables with saved PI Query Settings
 					candidates = Filter Each( {dtname},
 						Get Data Table List(),
-						length( dtname << Get Property( "PI Query Settings" ) ) > 0;
+						try( length( dtname << Get Property( "PI Query Settings" ) ) > 0, 0 );
 					);
 					If( N Items( candidates ) == 0,
 						New Window( "Recall Settings", Modal,
@@ -549,7 +627,46 @@ nw = New Window( "Get Aveva PI Data",
 				),
 				Button Box( "User Preferences",
 					include( "$ADDIN_HOME(com.github.himanga.JMPOSIPITools)\addinUserPrefMenu.jsl" )
-				)
+				),
+				Mouse Box(
+					Spacer Box( Size( 25, 50 ) ),
+					<< Set Track Enable( 1 ),
+					<< Set Track(
+						Function( {this, clickpt},
+							this << Set Cursor( "Arrow" )
+						)
+					),
+					<< Set Click Enable( 1 ),
+					<< Set Click(
+						Function( {this, clickpt, event},
+							If( event == "Pressed",
+								pressTime = Today();
+								triggered = 0;
+
+							, event == "Ticked",
+								If( !triggered & ( Today() - pressTime ) >= 0.5,
+									triggered = 1;
+									bb_reset << Visibility( "Visible" )
+								);
+
+							, event == "Released" | event == "Canceled",
+								pressTime = .;
+								triggered = 0;
+							)
+						)
+					)
+				),
+				bb_reset = Button Box( "Reset Environment",
+					// open a debug window or toggle debug mode here
+					Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
+					Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" ) << delete namespace( Force(1) );
+					thisAddIn = "com.github.himanga.JMPOSIPITools";
+					ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" );
+					ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
+					Include( ns:addinhome || "addinLoad.jsl" );
+				);
+				bb_reset << Visibility( "Collapse" );
+				bb_reset
 			)
 			
 		), //end of vertical box with heading above all other contents
@@ -567,5 +684,5 @@ cb_times << Set Items( Transform Each( {x}, PresetTimes, x[1] ) );
 
 //update the screen with initial values.
 LoadDefault("Interpolated Values");
-cb_tagtonotes << Set(1,1);
+chk_tagtonotes << Set(1,1);
 UpdateOutput();

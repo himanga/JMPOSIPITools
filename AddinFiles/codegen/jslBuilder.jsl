@@ -1,4 +1,11 @@
-//Create JMP JSL script from options on the form.
+/* About: JSL Script Builder
+
+Builds the JSL script that the user runs to pull data from PI.
+Takes an inputs struct from CollectQueryInputs and returns an
+expression that can be serialized and displayed in the UI.
+
+Section: Globals
+*/
 BuildJMPJSL = function( {inputs}, {txt},
 
 	// Unpack inputs struct
@@ -20,9 +27,17 @@ BuildJMPJSL = function( {inputs}, {txt},
 	TableFormat      = inputs["TableFormat"];
 	live             = inputs["live"];
 	allowInsecure    = inputs["allowInsecure"];
+	timeZone         = inputs["timeZone"];
+	logLevel         = inputs["logLevel"];
 	
 	ismissingcn = Transform Each({v, i}, inputs["TagSearchStrings"], Output("Matrix"), is missing(v) );
 	
+	//Make sure there are tags to process.
+	if( length( Loc(!ismissingcn) ) < 1,
+		write("\!NNo tags to search for");
+		stop()
+	);
+
 	//Set new column names from friendly names depending which the user picked.
 	oldcn = inputs["TagSearchStrings"][Loc(!ismissingcn)];
 	friendlycn = inputs["friendlyNames"][Loc(!ismissingcn)];
@@ -104,7 +119,9 @@ BuildJMPJSL = function( {inputs}, {txt},
 			expr(serverName),
 			expr(live),
 			expr(maxRows),
-			expr(allowInsecure)
+			expr(allowInsecure),
+			expr(timeZone),
+			expr(logLevel)
 		);
 
 		// Emit serverid lookup into the generated script
@@ -240,6 +257,7 @@ BuildJMPJSL = function( {inputs}, {txt},
 			//Set name
 			dtWide << setName( Expr( tableName ) );
 			tableName = dtWide << Get Name("Ignore Extension");
+			dtOut = dtWide;
 		));
 		If(inputs["tagToNotes"],
 			// Save column properties
@@ -268,20 +286,95 @@ BuildJMPJSL = function( {inputs}, {txt},
 		InsertInto(NewTblExpr, EvalExpr(
 			dtLong << setName( Expr( tableName ) );;
 			tableName = dtLong << Get Name("Ignore Extension");
-		));
+			dtOut = dtLong;
+		) );
+	);
+
+
+	// Section: Time Columns
+	// Convert the :time column from UTC to the user's selected timezone.
+	//
+	// :time is always presented in the user's chosen timezone — UTC, current
+	// offset, or a named IANA zone. A "Time Zone" column property documents
+	// what was applied.
+	//
+	// For current_offset mode, the offset is recalculated each time this
+	// script runs — correct for current data but may give wrong results
+	// for historical data spanning a DST transition. Use a named IANA
+	// timezone for accurate results across DST changes.
+	
+
+	If( timeZone == "local", timeZone = "current_offset" );
+	if( querytype != "Point Info",
+		If( timeZone == "utc",
+
+			InsertInto( NewTblExpr, 
+				// UTC — keep :time as-is, just document it
+				Column( dtOut, "time" ) << Set Property( "Time Zone", "UTC" );
+			)
+		,
+			InsertInto( NewTblExpr, EvalExpr(
+				// Any other timezone — rename original to :time UTC, hide it,
+				// then add a new :time column with the converted values
+				Column( dtOut, "time" ) << Set Name( "time UTC" );
+				Column( dtOut, "time UTC" ) << Hide( 1 ) << Exclude( 1 );
+			) );
+			If( timeZone == "current_offset",
+
+				InsertInto( NewTblExpr, EvalExpr(
+					tzOffset = ns:GetLocalTimeZoneDifference( conn );
+					//Triple Expr here because the expr inside it needs to still be wrapped in expr in the building script
+					Eval( Eval Expr( dtOut << New Column( "time",
+						Numeric,
+						Continuous,
+						Format( "m/d/y h:m:s" ),
+						Input Format( "m/d/y h:m:s" ),
+						Formula( :name("time UTC") + Expr( Expr( tzOffset ) ) )
+					) ) );
+					Column( dtOut, "time" ) << Set Property( "Time Zone",
+						"Current offset at query time, or " ||
+						"the offset of the machine that ran this script when the script ran (" ||
+						ns:FormatOffsetMinutes( ns:GetLocalTimeZoneDifference( conn ) / 60 ) || ")" );
+						dtOut << move selected columns( {"time"}, After(:"time UTC"n) );
+				) );
+			,
+				
+				// Named IANA zone — generate baked-in nested If formula at build time
+				// MakeUTCToLocalFormula bakes all transition timestamps and offsets
+				// as constants so the generated script has no function calls
+				MakeUTCToLocalFormula = name expr( ns:MakeUTCToLocalFormula );
+				ianaFormula = MakeUTCToLocalFormula(
+					Expr( :time UTC ),
+					timeZone,
+					"column"
+				);
+				InsertInto( NewTblExpr, Eval Expr(
+					dtOut << New Column( "time",
+						Numeric,
+						Continuous,
+						Format( "m/d/y h:m:s" ),
+						Input Format( "m/d/y h:m:s" ),
+						Formula( Expr( Name Expr( ianaFormula ) ) )
+					);
+					Column( dtOut, "time" ) << Set Property( "Time Zone", Expr( timeZone ) );
+					dtOut << move selected columns( {"time"}, After(:"time UTC"n) );
+				) )
+			);
+		);
 	);
 
 	// Save query settings to output tables for later recall
-	InsertInto( NewTblExpr , Expr(
-		runInputs = inputs;
+	Insert Into( NewTblExpr, Eval Expr(
+		runInputs = Expr( inputs );
 		runInputs["queryDate"] = Today();
-		Eval( EvalExpr(
-			DataTable( tableName ) << Set Table Property( "PI Query Settings", Expr( Name Expr( runInputs ) ) )
-		) )
-	));
+	) );
+
+	Insert Into( NewTblExpr, Expr(
+		Eval( Eval Expr( dtOut << Set Table Property( "PI Query Settings", Expr( Name Expr( runInputs ) ) ) ) )
+	) );
 
 	InsertInto( NewTblExpr , EvalExpr(
-		dt = DataTable( tableName );
+		dt = dtOut;
 		Note to Users = Expr("\!N**************************************\!N\!N" ||
 			"End of the script to pull this specific data.\!N\!N" ||
 			"Add scripts to manipulate the table or build reports after these comments.\!N" ||

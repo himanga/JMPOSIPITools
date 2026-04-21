@@ -1,19 +1,14 @@
 ﻿ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
 
-
-ut test( "Test", "One", Expr(
-	ut assert value(
-		1,
-		ut equal to( 1 ),
-		"math works"
-	);
-));
-
 ut test( "addinToolstest", "assignparsename", Expr(
 
-    ut assert value(
-        ns:assignparsename( "foo", "bar" );
-        foo,
+    ut assert that(
+        Expr( 
+            local( {foo},
+                ns:assignparsename( "foo", "bar" );
+                foo;
+            )
+        ),
         ut equal to( "bar" ),
         "assigns value to variable'"
     );
@@ -47,15 +42,14 @@ ut test("addinToolstest", "TryAppendError", Expr(
     // 1. Basic success: expression succeeds & return value OK
     // ------------------------------------------------------
     loaderrors = {};
-    ut assert value(
-        r = ns:TryAppendError( Expr(10 + 5), Expr(loaderrors), "No error expected" );
-        r,
+    ut assert that(
+        Expr( ns:TryAppendError( Expr(10 + 5), Expr(loaderrors), "No error expected" ) ),
         ut equal to(15),
         "Should return evaluated value when expression succeeds"
     );
 
-    ut assert value(
-        loaderrors,
+    ut assert that(
+        Expr( loaderrors ),
         ut equal to({}),
         "Should not append any errors on success"
     );
@@ -63,14 +57,14 @@ ut test("addinToolstest", "TryAppendError", Expr(
     // --------------------------------------------------------
     // 2. Append behavior: expression FAILS → append to list
     // --------------------------------------------------------
-    loaderrors = {};
-    ut assert value(
+    ut assert that( Expr(
+        loaderrors = {};
         ns:TryAppendError(
             Expr( 1 = 2 ), 
             Expr(loaderrors), 
             "Failure occurred"
         );
-        loaderrors[1],
+        loaderrors[1] ),
         ut contains("Failure occurred"),
         "Should append prefixed error message"
     );
@@ -92,8 +86,8 @@ ut test("addinToolstest", "TryAppendError", Expr(
         "Should rethrow error if stillthrow = 1"
     );
 
-    ut assert value(
-        loaderrors[1],
+    ut assert that(
+        expr( loaderrors[1] ),
         ut contains("Fail with rethrow"),
         "Error should still be appended before rethrow"
     );
@@ -176,13 +170,15 @@ ut test("addinToolstest", "TryAppendError", Expr(
     // 9. Ensure original exception message is included
     // ---------------------------------------------------------
     loaderrors = {};
-    ut assert value(
-        ns:TryAppendError(
-            Expr( Throw("XYZ") ),
-            Expr(loaderrors),
-            "Prefix"
-        );
-        loaderrors[1],
+    ut assert that( Expr( 
+            loaderrors = {};
+            ns:TryAppendError(
+                Expr( Throw("XYZ") ),
+                Expr(loaderrors),
+                "Prefix"
+            );
+            loaderrors[1];
+        ),
         ut contains("XYZ"),
         "Should include the underlying exception message"
     );
@@ -192,20 +188,14 @@ ut test("addinToolstest", "TryAppendError", Expr(
     //     The returned value should NOT be an exception
     // ---------------------------------------------------------
     loaderrors = {};
-    ut assert value(
-        threwerror = 0;
-        Try(
-			ns:TryAppendError(
-				Expr( Throw("Oops") ),
-				Expr(loaderrors),
-				"Some prefix",
-				0
-			);
-		,
-			threwerror = 1;
-		);
-		threwerror;,
-        ut equal to(0),
+    ut assert that( Expr(
+        ns:TryAppendError(
+            Expr( Throw("Oops") ),
+            Expr(loaderrors),
+            "Some prefix",
+            0
+        )),
+        ut no throw(),
         "When stillthrow=0 function should swallow exception and return a value"
     );
 

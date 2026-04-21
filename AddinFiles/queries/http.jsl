@@ -1,14 +1,57 @@
-ns:MakeConnection = function( {baseURL, serverName, live, maxRows, allowInsecure},
+/* About: HTTP Connection Utilities
+
+Provides MakeConnection, GetRequest, and FetchUtcHeader for
+communicating with the PI Web API.
+
+Section: Globals
+*/
+
+/*
+    Function: MakeConnection
+        ---Prototype---
+        ns:MakeConnection( String baseURL, String serverName, Number live,
+                           Number maxRows, String allowInsecure,
+                           String timeZone )
+        ---------------
+        Constructs a connection associative array used by all query
+        functions in this add-in.
+
+    Parameters:
+    - baseURL       - Base URL of the PI Web API, e.g. "https://server/piwebapi".
+    - serverName    - Name of the PI server.
+    - live          - 1 for JMP Live credentials, 0 for desktop.
+    - maxRows       - Maximum number of rows to return per tag.
+    - allowInsecure - "yes" to allow connections without a valid certificate.
+    - timeZone      - IANA timezone name, "current_offset".
+                      Defaults to "America/Chicago".
+
+    Returns:
+        An associative array with keys: baseURL, serverName, live, maxRows,
+        maxCount, allowInsecure, timeZone.
+
+    Notes:
+        - maxCount is set to the lesser of maxRows and ns:APIRowLimit.
+        - timeDifference is cached in the returned conn on first use by
+          <GetLocalTimeZoneDifference>.
+*/
+ns:MakeConnection = function( {baseURL, serverName, live, maxRows, allowInsecure,
+        timeZone="current_offset", loglevel ="None"},
     {conn},
     conn = Associative Array();
-    conn["baseURL"]     = baseURL;
-    conn["serverName"]  = serverName;
-    conn["live"]        = live;
-    conn["maxRows"]     = maxRows;
-    conn["maxCount"]    = Minimum( maxRows, ns:APIRowLimit );
+    conn["baseURL"]       = baseURL;
+    conn["serverName"]    = serverName;
+    conn["live"]          = live;
+    conn["maxRows"]       = maxRows;
+    conn["maxCount"]      = Minimum( maxRows, ns:APIRowLimit );
     conn["allowInsecure"] = allowInsecure;
+    conn["timeZone"]      = timeZone;
+    conn["logLevel"]      = logLevel;
     return( conn )
 );
+
+// Section: Requests
+// Send HTTP GET requests to the PI Web API
+
 // Sends a GET request to the endpoint with the specified parameters
 ns:GetRequest = Function( {conn, endpoint, queryParameters},
     {DEFAULT LOCAL},
@@ -40,6 +83,7 @@ ns:GetRequest = Function( {conn, endpoint, queryParameters},
     );
     request = Eval( request );
 	result = request << send;
+    ns:ToLogConn( conn, "GetRequest", Expr( request << GetLastURL ) );
 	if(!(request << IsSuccess),
         errorMessage = "Error connecting to web API, do you have a bad URL or server name?";
         errorMessage ||= "\!NLast URL: " || (request << GetLastURL);
@@ -105,6 +149,26 @@ ns:FetchUtcHeader = function( {conn},
     request << Send;
 
     headers = request << Get Response Headers();
+    //Return the date header
+    dateKey = ( Filter Each( {k}, headers << Get Keys,
+        Lowercase( k ) == "date" ) )[1];
+    headers[dateKey];
+);
 
-    headers["date"]
+/*
+    Function: ToLogConn
+        ---Prototype---
+        ns:ToLogConn( AssociativeArray conn, String env, Any message, Number logToFile )
+        ----------------------------------------------------------------------------------
+        Convenience wrapper around <ns:ToLog> that reads the log level
+        from conn["logLevel"].
+
+    Parameters:
+    - conn      - A connection associative array created by <MakeConnection>.
+    - env       - Calling environment label e.g. "GetRequest".
+    - message   - The message to write. Converted to string via Char().
+    - logToFile - Set to 1 to also write to the add-in log file. Defaults to 0.
+*/
+ns:ToLogConn = Function( {conn, env, message, logToFile = 0},
+    ns:ToLog( conn["logLevel"], env, name expr( message ), logToFile )
 );

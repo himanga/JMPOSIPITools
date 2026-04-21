@@ -106,3 +106,244 @@ stdcbInput = Function( { descmsg, varname, values, fn, helpmsg, descwidth = 97 }
 		
 	)
 );
+
+/*
+    Function: stdLinkBox
+        ---Prototype---
+        stdLinkBox( String displayText, Function fn )
+        ----------------------------------------------
+        Creates a blue underlined clickable text link.
+
+    Parameters:
+    - displayText - Text to display as the link.
+    - fn          - Function to call when clicked.
+
+    Returns:
+        A Mouse Box containing a styled Text Box.
+*/
+stdLinkBox = Function( {displayText, fn},
+    Eval( Eval Expr(
+        Mouse Box(
+            Text Box( displayText,
+                << Font Color( "blue" ),
+                << Set Font Style( "underline" )
+            ),
+            << Set Track Enable( 1 ),
+            << Set Track( Function( {this, clickpt},
+                this << Set Cursor( "Finger" )
+            ) ),
+            << Set Click Enable( 1 ),
+            << Set Click( Function( {this, clickpt, event},
+                If( event == "Pressed",
+                    Expr( Name Expr( fn ) )
+                )
+            ) )
+        )
+    ) )
+);
+
+/*
+    Function: ShowTimezonePicker
+        ---Prototype---
+        ShowTimezonePicker( String currentTz, Function onSelect )
+        ----------------------------------------------------------
+        Opens a timezone picker window with search box, offset range
+        slider, and a filtered list box. Calls onSelect with the
+        selected IANA name when OK is pressed.
+
+    Parameters:
+    - currentTz - Current timezone value (IANA name or special value).
+    - onSelect  - Function called with the selected IANA name string.
+
+    Notes:
+        - Calls <ns:LoadTzData> if data is not yet loaded.
+        - Filter slider uses display convention (negative = west of UTC).
+*/
+ShowTimezonePicker = Function( {currentTz, onSelect},
+    {DEFAULT LOCAL},
+
+    ns:LoadTzData();
+
+    // Section: Window
+    here:pickerWin = New Window( "Select Timezone",
+
+        // Section: State
+        window:pickerMinOffset = -840;  // -14 hours in display minutes
+        window:pickerMaxOffset =  720;  //  +12 hours in display minutes
+        window:searchText      = "";
+
+        // Section: Helper — rebuild list box contents
+        window:RebuildList = Function( {},
+            allZones = ns:GetTzNamesForPicker( here:pickerWin:pickerMinOffset, here:pickerWin:pickerMaxOffset );
+            If( Length( here:pickerWin:searchText ) > 0,
+            
+                allZonesTemp = Transform Each( {z}, allZones,
+                    Contains( Lowercase( z ), Lowercase( here:pickerWin:searchText ) )
+                );
+                allZones = Filter Each( {z}, allZones,
+                    Contains( Lowercase( z ), Lowercase( here:pickerWin:searchText ) )
+                )
+            );
+            here:pickerWin:lb_tzpicker << Set Items( allZones );
+            //here:pickerWin:lb_tzpicker << Set Items( allZones );
+            // Restore selection if current value is still in list
+            currentLabel = If(
+                currentTz == "current_offset", "Current UTC offset of this machine",
+                ns:FormatTzLabel( currentTz )
+            );
+            matchIdx = Loc( here:pickerWin:lb_tzpicker << Get Items, currentLabel );
+            ns:ToLog(cb_loglevel << Get Text, "ShowTimezonePicker",Expr( matchIdx ) );
+            If( N Items( matchIdx ) > 0,
+                here:pickerWin:lb_tzpicker << Set Selected( matchIdx[1], 1 )
+            );
+        );
+
+        //display elements
+        V List Box(
+            Text Box( "Select a timezone for the output time column.",
+                << Set Width( 500 )
+            ),
+            Spacer Box( Size( 0, 8 ) ),
+
+            // Search
+            H List Box(
+                V Center Box( Text Box( "Search: " ) ),
+                V Center Box(
+                    window:teb_tzsearch = Text Edit Box( "",
+                        << Set Width( 300 ),
+                        << Set Tip( "Type to filter the timezone list." ),
+                        << Set Text Changed( Function( {this, value},
+                            searchText = value;
+                            window:RebuildList();
+                        ) )
+                    )
+                ),
+                V Center Box( bbHelp(
+                    "Type any part of a timezone name to filter the list and press enter or tab." ||
+                    "\!N\!NExamples: 'Chicago', 'Europe', 'UTC+5'",
+                    HelpType = "stdtext"
+                ) )
+            ),
+            Spacer Box( Size( 0, 8 ) ),
+
+            // Offset range slider
+            H List Box(
+                V Center Box( Text Box( "UTC offset range: " ) ),
+                V Center Box(
+                    window:teb_slidermin = Text Edit Box(
+                        Char( pickerMinOffset / 60 ),
+                        << Set Width( 50 ),
+                        << Set Tip( "Minimum UTC offset in hours (e.g. -6 for UTC-6)" ),
+                        << Set Function( Function( {this},
+                            val = Num( this << Get Text );
+                            If( !Is Missing( val ),
+                                pickerMinOffset = val * 60;
+                                window:sb_tzrange << Set Lower( pickerMinOffset );
+                                window:RebuildList();
+                            ,
+                                this << Set Text( Char( pickerMinOffset / 60 ) )
+                            )
+                        ) )
+                    )
+                ),
+                V Center Box( Text Box( " to " ) ),
+                V Center Box(
+                    window:teb_slidermax = Text Edit Box(
+                        Char( pickerMaxOffset / 60 ),
+                        << Set Width( 50 ),
+                        << Set Tip( "Maximum UTC offset in hours (e.g. 6 for UTC+6)" ),
+                        //<< Set Function( tebTzSearchUpdate(this) ),
+                        << Set Function( Function( {this},
+                            val = Num( this << Get Text );
+                            If( !Is Missing( val ),
+                                pickerMaxOffset = val * 60;
+                                window:sb_tzrange << Set Upper( pickerMaxOffset );
+                                window:RebuildList();
+                            ,
+                                this << Set Text( Char( pickerMaxOffset / 60 ) )
+                            )
+                        ) )
+                    );
+                ),
+                V Center Box(
+                    window:sb_tzrange = Range Slider Box(
+                        -840, 720,
+                        pickerMinOffset,
+                        pickerMaxOffset,
+                        window:teb_slidermin << Set Text( Char( pickerMinOffset / 60 ) );
+                        window:teb_slidermax << Set Text( Char( pickerMaxOffset / 60 ) );
+                        window:RebuildList();
+                    )
+                ),
+                V Center Box( bbHelp(
+                    "Filter zones by UTC offset range." ||
+                    "\!N\!NEnter hours directly in the text boxes (e.g. -6 for UTC-6, 5.5 for UTC+5:30)" ||
+                    "\!N\!Nor drag the slider handles." ||
+                    "\!N\!NZones whose offset (including DST) falls within the range are shown.",
+                    HelpType = "stdtext"
+                ) )
+            ),
+            Spacer Box( Size( 0, 8 ) ),
+
+            // List box
+            H List Box(
+                window:lb_tzpicker = List Box(
+                    {},
+                    << Set Width( 460 ),
+                    << Set Height( 300 )
+                ),
+                V Center Box( bbHelp(
+                    "Select a timezone from the list." ||
+                    "\!N\!N'Local (this machine)' uses the current UTC offset of this " ||
+                    "machine at the time the script runs. Accurate for current data " ||
+                    "but may be wrong for historical data spanning a DST transition." ||
+                    "\!N\!N'Server (PI server time)' uses the PI server's current offset." ||
+                    "\!N\!NFor accurate results across DST transitions, select a named " ||
+                    "IANA timezone such as 'America/Chicago UTC-6 / UTC-5 DST'.",
+                    HelpType = "stdtext"
+                ) )
+            ),
+            Spacer Box( Size( 0, 8 ) ),
+
+            // Buttons
+            H List Box(
+                window:bbtzSetDefault = Button Box( "Set as Default",
+                    sel = ( window:lb_tzpicker << Get Selected )[1];
+                    If( !Is Missing( sel ),
+                        ns:UpdatePreference(
+                            "Default_TimeZone",
+                            ns:TzLabelToIanaName( sel )
+                        );
+                        // Brief visual feedback
+                        window:bbtzSetDefault << Set Label( "Saved" );
+                        Wait( 1.5 );
+                        window:bbtzSetDefault << Set Label( "Set as Default" );
+                    )
+                ),
+                Spacer Box( Size( 20, 0 ) ),
+                Button Box( "OK",
+                    sel = ( window:lb_tzpicker << Get Selected )[1];
+                    If( !Is Missing( sel ) & !Starts With( sel, "──" ),
+                        
+                        tb_timezone_display << Set Text(
+                            If(
+                                ns:TzLabelToIanaName( sel ) == "current_offset", "Current UTC offset of this machine",
+                                ns:TzLabelToIanaName( sel )
+                            )
+                        );
+                        here:pickerWin << Close Window;
+                    )
+                ),
+                Button Box( "Cancel",
+                    here:pickerWin << Close Window
+                ),
+                << Padding( Top( 8 ), Left( 0 ), Right( 0 ), Bottom( 8 ) )
+            ),
+            << Padding( Top( 16 ), Left( 16 ), Right( 16 ), Bottom( 16 ) )
+        )
+    );
+
+    // Populate list after window is built
+    wait(1);
+    here:pickerWin:RebuildList();
+);

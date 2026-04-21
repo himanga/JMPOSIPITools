@@ -9,7 +9,7 @@ Conventions:
   - untils are JMP numeric dates (seconds since 1904-01-01 UTC)
   - . (missing) as an until means "this offset applies indefinitely"
 
-Section: Globals
+Section: Utility Functions
 */
 Names Default To Here( 1 );
 
@@ -39,10 +39,11 @@ If(
           meaningful data is available.
 */
 ns:LoadTzData = Function( {},
-    {DEFAULT LOCAL},
     // Already loaded if ns:tzData has entries
-    If( Is Associative Array( ns:tzData ) & N Items( ns:tzData ) > 0,
-        Return( 1 )
+    If( Length(Loc(ns << get keys, "tzData"))>0,
+        If( Is Associative Array( ns:tzData ) & N Items( ns:tzData ) > 0,
+            Return( 1 )
+        );
     );
     Include( ns:addinhome || "tz\tzData.jsl" );
     // Return 0 if still empty (stub not populated)
@@ -113,7 +114,7 @@ ns:GetOffsetForTimeZone = Function( {ianaName, jmpDate},
     ns:LoadTzData();
     canonicalName = ns:ResolveZoneName( ianaName );
 
-    If( !Contains( ns:tzData, canonicalName ),
+    If( !Contains( ns:tzData, canonicalName ) & !(ianaName == "current_offset"),
         Print( "Warning: timezone not found in tzData: " || ianaName );
         Return( 0 )
     );
@@ -257,12 +258,10 @@ ns:GetTzNamesForPicker = Function( {minOffsetFilter, maxOffsetFilter},
     srcMin = -maxOffsetFilter;  // display max -> source min
     srcMax = -minOffsetFilter;  // display min -> source max
 
-    result = {
-        "Local (this machine)",
-        "Server (PI server time)"
-    };
+    result = {};
 
     zoneNames = ns:tzData << Get Keys;
+    
     For Each( {zoneName}, zoneNames,
         zone      = ns:tzData[zoneName];
         minOffset = zone["minOffset"];
@@ -273,9 +272,18 @@ ns:GetTzNamesForPicker = Function( {minOffsetFilter, maxOffsetFilter},
         )
     );
 
-    // Sort alphabetically after the two special entries
-	// TODO: sort rest alphabetically once SortList indexing is resolved
-	
+    // Append fixed UTC offset entries for whole hours only
+    Insert Into( result, "── Fixed Offsets ──" );
+    For( h = 14, h >= -12, h--,
+        offsetMins = -h * 60;  // convert display hours to source minutes
+        If( offsetMins >= srcMin & offsetMins <= srcMax,
+            Insert Into( result, ns:FormatOffsetMinutes( offsetMins ) )
+        )
+    );
+
+    Insert Into( result, "──     Other     ──" );
+    Insert Into( result, "Current UTC offset of this machine" );
+    
     result
 );
 
@@ -296,8 +304,7 @@ ns:GetTzNamesForPicker = Function( {minOffsetFilter, maxOffsetFilter},
         special entries.
 */
 ns:TzLabelToIanaName = Function( {label},
-    If( label == "Local (this machine)",  Return( "local" ) );
-    If( label == "Server (PI server time)", Return( "server" ) );
+    If( label == "Current UTC offset of this machine",  Return( "current_offset" ) );
     // IANA name is the first token before the first space
     Words( label, " " )[1]
 );

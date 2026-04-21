@@ -21,16 +21,25 @@ $tzBuilderPath = Join-Path $ProjectRoot "AddinFiles/tz/tzBuilder.jsl"
 $tzDataPath    = Join-Path $ProjectRoot "AddinFiles/tz/tzData.jsl"
 
 $tempScript = Join-Path (Get-Location) "temp-buildtzdata.jsl"
+$tzLogPath = Join-Path (Get-Location) "temp-buildtzdataLog.jsl"
 
 Set-Content $tempScript @"
-global:tzBuilderOutputPath = "$($tzDataPath -replace '\\', '/')";
-Include("$($tzBuilderPath -replace '\\', '/')");
+tzLogs = Log Capture(
+    global:tzBuilderOutputPath = "$($tzDataPath -replace '\\', '/')";
+    $TzDataPreJSL
+    Include("$($tzBuilderPath -replace '\\', '/')");
+    $TzDataPostJSL
+);
+Save Text File(
+    "$tzLogPath",
+    tzLogs
+);
 Quit("No Save");
 "@
 
 $beforeTime = Get-Date
 Start-Process $JmpExe -ArgumentList $tempScript -Wait -NoNewWindow
-Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+#Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
 
 $fileInfo = Get-Item $tzDataPath -ErrorAction SilentlyContinue
 if (-not $fileInfo -or $fileInfo.LastWriteTime -lt $beforeTime) {

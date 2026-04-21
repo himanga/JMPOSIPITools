@@ -14,7 +14,10 @@ thisAddIn = "com.github.himanga.JMPOSIPITools";
 // About: get or make namespace for this add-in
 If( 
 	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
-	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	//reload the add-in
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" );
+	ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
+	Include( ns:addinhome || "addinLoad.jsl" );,
 	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 );
 ns:logusage( "Get PI Data" );

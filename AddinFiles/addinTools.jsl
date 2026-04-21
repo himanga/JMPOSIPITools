@@ -69,7 +69,7 @@ ns:assignparsename = function({left = ., right = "somethingnobodyshouldEVERpickI
 	Note:
 		
 */
-ns:TryAppendError = function({ex, lst, prepend, stillthrow = 0},
+ns:TryAppendError = function({ex, lst, prepend, stillthrow = 0}, {err, errm},
 	lst = Name Expr(lst);
 	if(!(Type(lst) == "List"), Throw("list to append error to must be a list, (was " || Type(lst) || ")"));
 	if(!(Type(prepend) == "String"), Throw("prepend text must be a string, (was " || Type(prepend) || ")"));

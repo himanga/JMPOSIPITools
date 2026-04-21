@@ -13,6 +13,11 @@ $CustomMetadataRel = "customMetadata.jsl"
 $NaturalDocsExe = "C:\Program Files (x86)\Natural Docs\NaturalDocs.exe"
 $JmpExe         = "$Env:ProgramFiles\JMP\JMPPRO\19\jmp.exe"
 
+# Optional JSL to run before and after tzBuilder.jsl
+# Override in buildConfig.local.ps1 to configure proxy or other local setup
+$TzDataPreJSL  = ""
+$TzDataPostJSL = ""
+
 # JMP versions to run unit tests against in build_Release.ps1.
 # Set any entry to "" to skip it, or override the whole array in
 # buildConfig.local.ps1 to add/remove versions.

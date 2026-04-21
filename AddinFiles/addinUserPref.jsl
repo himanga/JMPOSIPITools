@@ -3,10 +3,13 @@ Names default to here( 1 );
 //Set this to the add-in ID:
 thisAddIn = "com.github.himanga.JMPOSIPITools";
 
-//get or make namespace for this add-in
+// About: get or make namespace for this add-in
 If( 
 	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
-	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+	//reload the add-in
+	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" );
+	ns:addinhome = "$ADDIN_HOME(" || thisAddIn || ")\";
+	Include( ns:addinhome || "addinLoad.jsl" );,
 	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
 );
 
@@ -19,7 +22,7 @@ ns:UserPrefPath = ns:AppDataPath || "UserPref.jsl";
 //Set a preference value
 ns:UpdatePreference = function( {pref, value, savetofile = 1},
 	ns:UserPref[pref] = value;
-	If( savetofile = 1, ns:SaveUserPref );
+	If( savetofile == 1, ns:SaveUserPref );
 );
 
 //Save preferences to a file

@@ -1,34 +1,61 @@
-﻿//Runs unit tests - designed to be called from powershell with no user input
-thisAddIn = "com.github.himanga.JMPOSIPITools";
-
-// About: get or make namespace for this add-in
-If( 
-	!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
-	ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
-	ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
-);
-// About: Loads the add-in and runs unit tests
+﻿
 Try(
+	//Runs unit tests - designed to be called from powershell with no user input
+	thisAddIn = "com.github.himanga.JMPOSIPITools";
+
+	// About: get or make namespace for this add-in
+	If( 
+		!Namespace Exists( Eval( thisAddIn ) || ".addinnamespace" ),
+		ns = New Namespace( Eval( thisAddIn ) || ".addinnamespace" ),
+		ns = Namespace( Eval( thisAddIn ) || ".addinnamespace" )
+	);
+
+	If( Is Empty( global:pathTestOutput ),
+		global:pathTestOutput = Convert File Path( ns:addinhome || "temp-buildtestdataOutput.jsl" );
+	);
+
+	// About: Loads the add-in and runs unit tests
 	Include((Get Addin( "com.jmp.jslhamcrest" ) << Home Folder()) || "Source\Addin\Actions\InitializeFramework.jsl");
 	Include((Get Addin( thisAddIn ) << Home Folder()) || "addinload.jsl");
+	//get config files - local and server time zones which are used to calculate correct values in the tests
+	if( is missing(testServerTimezone),
+		Include( (Get Addin( thisAddIn ) << Home Folder()) || "testConfig.default.jsl" );
+		If( File Exists( (Get Addin( thisAddIn ) << Home Folder()) || "testConfig.local.jsl" ),
+			Include( (Get Addin( thisAddIn ) << Home Folder()) || "testConfig.local.jsl" )
+		);
+	);
 	
 	If(Is Empty(ut addin home), ut addin home = Convert File Path("../"));
 	If(Is Empty(ut addin scratch), ut addin scratch = Get Path Variable("TEMP"));
 
+,
+	Write("\!NError preparing environment:");
+	show(exception_msg)
+);
+Try(
 	ut global reporter = ut collecting reporter();
 	ut include jsl files recursively( "UnitTests" );
 	ReporterOutput = Log Capture(
 		ut global reporter << show report;
 	);
-
+	Write( "\!N--- Start of ReporterOutput ---\!N" || ReporterOutput
+	|| "\!N--- End of ReporerOutput ---" );
 	TotalFailures = ut global reporter << N total Failures;
-	
+,
+	Write("\!NError running tests:");
+	show(exception_msg)
+);
+Try(
 	Save Text File(
-		"$temp\temp-unittestoutput.txt",
+		global:pathTestOutput,
 		Eval( Eval Expr( Char( As JSON Expr(Associative Array( {
-			{"ReporterOutput", expr( ReporterOutput ) },
-			{"TotalFailures", Expr( TotalFailures ) }}
-		) ) ) ) )
-	),
-	exception_msg
+			{"ReporterOutput", expr( try( ReporterOutput, "" ) ) },
+			{"TotalFailures", Expr( try( TotalFailures, "" ) ) },
+			{"JMPHome", Expr( Get Path Variable( "JMP_HOME" ) ) },
+			{"Complete Time", Expr( Format( Today(), "yyyy-mm-ddThh:mm:ss" ) ) }
+		} ) ) ) ) )
+	);
+,
+	Write("\!NError writing results:");
+	show(exception_msg);
 );

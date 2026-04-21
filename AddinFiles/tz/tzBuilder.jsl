@@ -13,12 +13,12 @@ proxy server and port in JMP under File > Preferences > Internet. Use
 Source: https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json
 License: MIT - see README.md for attribution.
 
-Section: Globals
+// Section: Setup
+Get namespace, set output path
 */
 
 Names Default To Here( 1 );
 
-// About: Get Namespace
 thisAddIn = "com.github.himanga.JMPOSIPITools";
 If(
     Namespace Exists( thisAddIn || ".addinnamespace" ),
@@ -26,7 +26,6 @@ If(
     Throw( "Add-in namespace is not available." )
 );
 
-// About: Output path ───────────────────────────────────────────────────────────────
 // If tzBuilderOutputPath was set by the calling script (e.g. buildTzData.ps1),
 // use that. Otherwise write to the installed add-in location for interactive use.
 If( !Is Empty( global:tzBuilderOutputPath ),
@@ -47,11 +46,11 @@ JMP_UNIX_OFFSET = 2082844800;
 windowEndMs     = (Today() - JMP_UNIX_OFFSET) * 1000;
 windowStartMs   = windowEndMs - 10 * 365.25 * 24 * 3600 * 1000;
 
-// About: Fetch Data ────────────────────────────────────────────────────────────────
+// Section: Fetch
+// Download and parse data
 sourceURL = "https://raw.githubusercontent.com/moment/moment-timezone/develop/data/unpacked/latest.json";
 
 Write( "Fetching timezone data from GitHub..." );
-
 request = New HTTP Request(
     URL( sourceURL ),
     Method( "GET" ),
@@ -135,7 +134,8 @@ FilterZoneTransitions = Function( {zone},
     result
 );
 
-// ── Build ns:tzData in memory ─────────────────────────────────────────────────
+// Section: Build Array
+// Build ns:tzData in memory
 Write( "Processing zones..." );
 
 ns:tzData  = Associative Array();
@@ -148,18 +148,24 @@ For( zi = 1, zi <= nZones, zi++,
     filtered = FilterZoneTransitions( zone );
 
     allOffsets = filtered["offsets"];
-
+    If( N Items( allOffsets ) > 1,
+        recentOffsets = allOffsets[2 :: N Items( allOffsets )];
+    ,
+        recentOffsets = allOffsets;
+    );
+    
     entry = Associative Array();
     entry["offsets"]   = filtered["offsets"];
     entry["untils"]    = filtered["untils"];
     entry["abbrs"]     = filtered["abbrs"];
-    entry["minOffset"] = Min( Matrix( allOffsets ) );
-    entry["maxOffset"] = Max( Matrix( allOffsets ) );
+    entry["minOffset"] = Min( Matrix( recentOffsets ) );
+    entry["maxOffset"] = Max( Matrix( recentOffsets ) );
 
     ns:tzData[zoneName] = entry;
 );
 
-// ── Serialize and write ───────────────────────────────────────────────────────
+// Section: Output
+// Serialize and write to tzData.jsl
 Write( "Writing tzData.jsl..." );
 
 generatedDate  = Format( Today(), "yyyy-mm-dd" );
