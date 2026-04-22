@@ -135,6 +135,10 @@ ns:ToLog = Function( {level, env, message, logToFile = 0},
 				ns:logusage( "DEBUG: " || fullMessage )
 			)
 		),
-		Write( "\!NToLog Failed" )
+		Write( "\!NToLog Failed"
+			|| "\!Nlevel: " || try( char( level ), "" )
+			|| "\!Nenv: " || try( char( env ), "" )
+			|| "\!Nmessage: " || try( char( message ), "" )
+		)
 	)
 );
