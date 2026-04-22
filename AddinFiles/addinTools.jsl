@@ -248,3 +248,11 @@ ns:padnum = function({n, width = 2},
 
     sign || s
 );
+
+ns:AutoResizeTEB = function({teb},
+	t = teb << get text;
+	breakcount = length(t) - length(substitute(t,"\!N",""));
+	fs = teb << get font size;
+	tHeight = (breakcount + 1) * ( fs ) * 0.89 + fs * 1.06;
+	teb << set height(tHeight + 2);
+);

@@ -88,7 +88,7 @@ ns:LoadUserPref = function ({},
 				V List box(
 					Text Box( 
 						ns:metadata_aa["name"] || " failed to load user preferences from the saved file.", 
-						<<Set Font Style("bold" ), 
+						<< Set Font Style("bold" ), 
 						<< Set Width( 600 )
 					),
 					Spacer Box( Size( 24, 24 ) ),
@@ -189,8 +189,8 @@ ns:UserPrefUI = function({},
 	//Function to read values and update user pref
 
 	//insert each preference into the user interface
-	pref = ns:UserPref << First;
-	totalpref = N Items( ns:UserPref );
+	pref = ns:PrefInfo << First;
+	totalpref = N Items( ns:PrefInfo );
 	for( prefn = 1, prefn <= totalpref, prefn++,
 		//text box describing the preference
 		(prefwin << Find( ListBox(3) ) ) << Append( Text Box(
@@ -204,10 +204,13 @@ ns:UserPrefUI = function({},
 			<< set width( 500 );
 		) );
 		//text edit box with the preference value
-		Eval( Eval Expr( (prefwin << Find( ListBox(3) ) ) << Append( Expr( Parse( "TEB_" || Char( pref ) ) ) =
-			Text Edit Box(
+		Eval( Eval Expr( 
+			(prefwin << Find( ListBox(3) ) ) << Append(
+				Expr( Parse( "TEB_" || Char( pref ) ) ) = Text Edit Box(
 				ns:UserPref[ Expr( pref ) ], 
 				<< Set Width( 500 ),
+					<< Set NLines( 2 ),
+					<< Set Wrap( 1000 ),
 				<< Set Script(
 
 					//Get the user-entered value
@@ -236,6 +239,7 @@ ns:UserPrefUI = function({},
 						Expr( Parse( "TEB_" || Char( pref ) ) ) << Set text( ns:UserPref[ Expr( pref ) ] );
 					);
 
+						ns:AutoResizeTEB( Expr( Parse( "TEB_" || Char( pref ) ) ) );
 				),
 				<< Padding(
 					Left( 0 ),
@@ -243,8 +247,13 @@ ns:UserPrefUI = function({},
 					Right( 0 ),
 					Bottom( 0 )
 				)
-			)
-		) ) );
-		pref = ns:UserPref << Next( pref );
+				);
+			);
+		) );
+		pref = ns:PrefInfo << Next( pref );
 	);
+	
+	// Auto resize all boxes
+	for each( {w}, prefwin << XPath( "//TextEditBox" ), try( ns:AutoResizeTEB(w) ) );
+
 );
