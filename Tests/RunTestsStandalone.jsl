@@ -41,6 +41,8 @@ Try(
 	Write( "\!N--- Start of ReporterOutput ---\!N" || ReporterOutput
 	|| "\!N--- End of ReporerOutput ---" );
 	TotalFailures = ut global reporter << N total Failures;
+	TotalSuccesses = ut global reporter << N successes;
+	TotalSkips = ut global reporter << N skips;
 ,
 	Write("\!NError running tests:");
 	show(exception_msg)
@@ -51,6 +53,8 @@ Try(
 		Eval( Eval Expr( Char( As JSON Expr(Associative Array( {
 			{"ReporterOutput", expr( try( ReporterOutput, "" ) ) },
 			{"TotalFailures", Expr( try( TotalFailures, "" ) ) },
+			{"TotalSuccesses", Expr( try( TotalSuccesses, "" ) ) },
+			{"TotalSkips", Expr( try( TotalSkips, "" ) ) },
 			{"JMPHome", Expr( Get Path Variable( "JMP_HOME" ) ) },
 			{"Complete Time", Expr( Format( Today(), "yyyy-mm-ddThh:mm:ss" ) ) }
 		} ) ) ) ) )

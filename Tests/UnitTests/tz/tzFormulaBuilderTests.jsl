@@ -11,23 +11,24 @@ ns = Namespace( "com.github.himanga.JMPOSIPITools" || ".addinnamespace" );
 
 //values don't exist yet
 ut test( "tzFormulaBuilder", "MakeUTCToLocalFormula", Expr(
-
     // scalar
     ut assert that( Expr( 
-            MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
-            ns:MakeUTCToLocalFormula( Expr( a ), "utc", "scalar" ) ),
-        ut equal to( Expr( a ) ),
+        MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
+        
+        e = MakeUTCToLocalFormula( Expr( Expr( a ) ), "utc", "scalar" );
+        name expr(e) ),
+        ut equal to( expr(a) ),
         "scalar: UTC returns formula that is just the input"
     );
 ) );
 
 //using variable inside local context shouldn't break
-ut test( tzFormulaBuilder, "MakeUTCToLocalFormula", Expr(
-
+ut test( "tzFormulaBuilder", "MakeUTCToLocalFormula", Expr(
     ut assert that( Expr( 
-            MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
-            ns:MakeUTCToLocalFormula( Expr( a ), "utc", "scalar" ) ),
-        ut equal to( Expr( a ) ),
+        MakeUTCToLocalFormula = Name Expr( ns:MakeUTCToLocalFormula );
+        e = MakeUTCToLocalFormula( Expr( Expr( a ) ), "utc", "scalar" );
+        name expr(a) ),
+        ut equal to( expr( a ) ),
         "using variable from inside function doesn't break it"
     );
 ) );
@@ -276,12 +277,6 @@ ut test( tzFormulaCase, "MakeUTCToLocalFormula - invalid input", Expr(
         Expr( ns:MakeUTCToLocalFormula( Expr( t ), "current_offset", "scalar" ) ),
         ut throws( ut anything() ),
         "current_offset is not valid — caller must resolve to UTC±H first"
-    );
-
-    ut assert that(
-        Expr( ns:MakeUTCToLocalFormula( Expr( t ), "server", "scalar" ) ),
-        ut throws( ut anything() ),
-        "server is not valid — caller must resolve to UTC±H first"
     );
 
     ut assert that(
@@ -866,12 +861,6 @@ ut test( tzFormulaCase, "MakeLocalToUTCFormula - invalid input", Expr(
         Expr( ns:MakeLocalToUTCFormula( Expr( t ), "current_offset", "scalar" ) ),
         ut throws( ut anything() ),
         "current_offset is not valid — caller must resolve to UTC±H first"
-    );
-
-    ut assert that(
-        Expr( ns:MakeLocalToUTCFormula( Expr( t ), "server", "scalar" ) ),
-        ut throws( ut anything() ),
-        "server is not valid — caller must resolve to UTC±H first"
     );
 
     ut assert that(

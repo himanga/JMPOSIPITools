@@ -294,7 +294,7 @@ ShowTimezonePicker = Function( {currentTz, onSelect},
                 ),
                 V Center Box( bbHelp(
                     "Select a timezone from the list." ||
-                    "\!N\!N'Local (this machine)' uses the current UTC offset of this " ||
+                    "\!N\!N'current_offset' uses the current UTC offset of this " ||
                     "machine at the time the script runs. Accurate for current data " ||
                     "but may be wrong for historical data spanning a DST transition." ||
                     "\!N\!N'Server (PI server time)' uses the PI server's current offset." ||

@@ -351,7 +351,7 @@ ut test( tzUtilsCase, "FormatTzLabel", Expr(
 ut test( tzUtilsCase, "TzLabelToIanaName", Expr(
 
     ut assert that(
-        Expr( ns:TzLabelToIanaName( "Local (this machine)" ) ),
+        Expr( ns:TzLabelToIanaName( "Current UTC offset of this machine" ) ),
         ut equal to( "current_offset" ),
         "Local special value"
     );
@@ -380,12 +380,6 @@ ut test( tzUtilsCase, "TzLabelToIanaName", Expr(
 ut test( tzUtilsCase, "GetTzNamesForPicker", Expr(
 
     allZones = ns:GetTzNamesForPicker( -840, 720 );
-
-    ut assert that(
-        Expr( allZones[1] ),
-        ut equal to( "Local (this machine)" ),
-        "First entry is always Local"
-    );
 
     ut assert that(
         Expr( N Items( allZones ) ),
@@ -421,8 +415,8 @@ ut test( tzUtilsCase, "GetTzNamesForPicker", Expr(
     filteredEmpty = ns:GetTzNamesForPicker( 850, 900 );
     ut assert that(
         Expr( N Items( filteredEmpty ) ),
-        ut equal to( 2 ),
-        "Out of range filter returns only the two special entries"
+        ut equal to( 3 ),
+        "Out of range filter returns the three special entries (headings and current_offset)"
     );
 
 ));

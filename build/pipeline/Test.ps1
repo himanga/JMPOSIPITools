@@ -23,6 +23,9 @@ $tempLoad = Join-Path (Get-Location) "temp-loadaddin.jsl"
 Set-Content $tempLoad "Open(`"$addinFullPath`");`nQuit(`"No Save`";);"
 
 $anyFailures = $false
+$totalFailures = 0
+$totalSuccesses = 0
+$totalSkips = 0
 $testedVersions = 0
 
 foreach ($thisjmpExe in $JmpVersionsToTest) {
@@ -90,7 +93,10 @@ Quit("No Save");
     Write-Host $ReportFailures
     Write-Host $ReportHeader
 
-    if ($result.TotalFailures -gt 0) {
+    if (-not ($result.ReporterOutput -match '-------------- Failures --------------')) {
+        Write-Host "`nFAILED - test output does not contain expected report structure - tests may not have run"
+        $anyFailures = $true
+    } elseif ($result.TotalFailures -gt 0) {
         Write-Host "`nFAILED - $($result.TotalFailures) tests did not succeed"
         $anyFailures = $true
     } else {
@@ -98,6 +104,9 @@ Quit("No Save");
     }
 
     $testedVersions++
+    try{ $totalFailures =  $totalFailures  + $result.TotalFailures  } catch { $totalFailures++ }
+    try{ $totalSuccesses = $totalSuccesses + $result.TotalSuccesses } catch {}
+    try{ $totalSkips     = $totalSkips     + $result.TotalSkips     } catch {}
 }
 
 if ($testedVersions -eq 0) {
@@ -110,4 +119,7 @@ if ($anyFailures) {
 
 Write-Host "`n====================================="
 Write-Host "OVERALL: All tests passed across $testedVersions JMP version(s)."
+Write-Host "Failures : $totalFailures"
+Write-Host "Successes: $totalSuccesses"
+Write-Host "Skips    : $totalSkips"
 Write-Host "====================================="

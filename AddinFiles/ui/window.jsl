@@ -321,7 +321,7 @@ nw = New Window( "Get Aveva PI Data",
 							spacer box( size( 14,1 ) ),
 							bbHelp(
 								"Timezone for the time column in the output table." ||
-								"\!N\!N'Local (this machine)' uses the current UTC offset of this machine " ||
+								"\!N\!N'current_offset' uses the current UTC offset of this machine " ||
 								"at the time the script runs. Accurate for current data but may be wrong " ||
 								"for historical data spanning a DST transition." ||
 								"\!N\!NFor accurate results across DST transitions, select a named IANA " ||
