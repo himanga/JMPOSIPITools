@@ -3,6 +3,7 @@ NaturalDocs/**
 !NaturalDocs/Comments.txt
 !NaturalDocs/Languages.txt
 !NaturalDocs/Project.txt
+!NaturalDocs/custom.css
 AddinFiles/Docs/**
 !AddinFiles/Docs/Docs.txt
 

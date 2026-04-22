@@ -1,61 +1,83 @@
-﻿/* Base font */
+﻿/* ── Base ─────────────────────────────────────────────────── */
+
 body {
     font-family: Arial, Helvetica, sans-serif;
-    font-size: 16px;
-    line-height: 1.45;
+    font-size: 15px;
+    line-height: 1.35;
     color: #111827;
 }
 
-/* ------------------ */
-/* Headings (reset)   */
-/* ------------------ */
+/* ── Headings ─────────────────────────────────────────────── */
 
 h1 {
-    font-size: 1.4rem;
+    font-size: 1.3rem;
     color: #1f3a5f;
     font-weight: 700;
-    margin-top: 0.6em;
-    margin-bottom: 0.05em;
-    margin-left: 0;
-    letter-spacing: 0.05em;
+    margin-top: 0.8em;
+    margin-bottom: 0.1em;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #d1dae6;
+    padding-bottom: 0.15em;
 }
 
 h2 {
-    font-size: 1.2rem;
-    color: #8b2c2c;
+    font-size: 1.1rem;
+    color: #1a6494;
     font-weight: 600;
     margin-top: 0.6em;
     margin-bottom: 0.05em;
     margin-left: 0.75rem;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
+    position: relative;
+}
+
+h2::after {
+    content: '';
+    display: block;
+    margin-top: 0.15em;
+    width: 60%;
+    border-bottom: 1px solid #e2eaf2;
 }
 
 h3 {
-    font-size: 1.0rem;
+    font-size: 0.875rem;
     color: #4b5563;
     font-weight: 600;
     margin-top: 0.4em;
     margin-bottom: 0.05em;
     margin-left: 1.5rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.07em;
 }
 
-/* ------------------ */
-/* Paragraphs         */
-/* ------------------ */
+h3::after {
+    content: '';
+    display: block;
+    margin-top: 0.1em;
+    width: 40%;
+    border-bottom: 1px dotted #e5e7eb;
+}
+
+h4 {
+    font-size: 0.85rem;
+    color: #6b7280;
+    font-weight: 600;
+    margin-top: 0.3em;
+    margin-bottom: 0.05em;
+    margin-left: 2rem;
+}
+
+/* ── Paragraphs ───────────────────────────────────────────── */
 
 p {
     margin-top: 0.15em;
-    margin-bottom: 0.25em;
+    margin-bottom: 0.2em;
 }
 
-/* More breathing room between paragraphs */
 p + p {
-    margin-top: 0.4em;
+    margin-top: 0.35em;
 }
 
-/* Tighten spacing immediately after headings */
 h2 + ul,
 h2 + ol,
 h3 + ul,
@@ -64,31 +86,113 @@ h3 + p {
     margin-top: 0.05em;
 }
 
-/* ------------------ */
-/* Lists              */
-/* ------------------ */
+/* ── Links ────────────────────────────────────────────────── */
+
+a {
+    color: #1a6494;
+    text-decoration: none;
+}
+
+a:hover {
+    color: #1f3a5f;
+    text-decoration: underline;
+}
+
+/* ── Lists ────────────────────────────────────────────────── */
 
 ul,
 ol {
-    margin-top: 0.15em;
-    margin-bottom: 0.3em;
+    margin-top: 0.1em;
+    margin-bottom: 0.25em;
     padding-left: 1.2em;
 }
 
 li {
-    margin-bottom: 0.12em;
+    margin-bottom: 0.1em;
 }
 
 li:last-child {
     margin-bottom: 0;
 }
 
+/* ── Inline code ──────────────────────────────────────────── */
 
-/* ------------------ */
-/* Indentation logic  */
-/* ------------------ */
+code {
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.875em;
+    background: #f0f4f8;
+    border: 1px solid #dbe5f0;
+    padding: 0.1em 0.25em;
+    border-radius: 2px;
+    color: #1f3a5f;
+}
 
-/* Paragraph-like content under h2 */
+/* ── Code blocks ──────────────────────────────────────────── */
+
+pre {
+    background: #f5f7fa;
+    border: 1px solid #dbe5f0;
+    border-left: 3px solid #1a6494;
+    padding: 0.5em 0.75em;
+    margin: 0.3em 0;
+    overflow-x: auto;
+    line-height: 1.4;
+}
+
+pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.85em;
+    color: #111827;
+}
+
+/* ── Blockquotes ──────────────────────────────────────────── */
+
+blockquote {
+    border-left: 2px solid #9db8d2;
+    margin: 0.3em 0 0.3em 0.75rem;
+    padding: 0.1em 0.75em;
+    color: #4b5563;
+    font-style: italic;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+
+table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    margin: 0.35em 0;
+}
+
+th {
+    text-align: left;
+    padding: 0.25em 0.75em;
+    font-weight: 600;
+    color: #1f3a5f;
+    border-bottom: 2px solid #9db8d2;
+    background: #f0f4f8;
+}
+
+td {
+    padding: 0.2em 0.75em;
+    border-bottom: 1px solid #e2eaf2;
+}
+
+tr:last-child td {
+    border-bottom: none;
+}
+
+/* ── Horizontal rules ─────────────────────────────────────── */
+
+hr {
+    border: none;
+    border-top: 1px solid #dbe5f0;
+    margin: 0.6em 0;
+}
+
+/* ── Indentation under h2 ─────────────────────────────────── */
+
 h2 ~ p,
 h2 ~ blockquote,
 h2 ~ pre,
@@ -96,14 +200,14 @@ h2 ~ table {
     margin-left: 0.75rem;
 }
 
-/* Lists under h2 */
 h2 ~ ul,
 h2 ~ ol {
     margin-left: 0.75rem;
-    padding-left: 1.5rem; /* moves bullets correctly */
+    padding-left: 1.5rem;
 }
 
-/* Paragraph-like content under h3 */
+/* ── Indentation under h3 ─────────────────────────────────── */
+
 h3 ~ p,
 h3 ~ blockquote,
 h3 ~ pre,
@@ -111,7 +215,6 @@ h3 ~ table {
     margin-left: 1.5rem;
 }
 
-/* Lists under h3 */
 h3 ~ ul,
 h3 ~ ol {
     margin-left: 1.5rem;

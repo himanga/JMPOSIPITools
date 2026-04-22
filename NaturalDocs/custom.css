@@ -1,0 +1,205 @@
+/* ============================================================
+   naturaldocs-styles.css — Markdown parity palette
+   Designed specifically for Natural Docs content pages
+   ============================================================ */
+
+/* ── Base ─────────────────────────────────────────────────── */
+
+.NDContentPage body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 15px;
+    line-height: 1.35;
+    color: #111827;
+}
+
+/* ── Page / File Title (h1) ───────────────────────────────── */
+
+.NDContentPage .CPageTitle,
+.NDContentPage .NDPageTitle {
+    font-size: 1.3rem;
+    color: #1f3a5f;
+    font-weight: 700;
+    margin-top: 0.8em;
+    margin-bottom: 0.1em;
+    letter-spacing: 0.04em;
+    border-bottom: 1px solid #d1dae6;
+    padding-bottom: 0.15em;
+}
+
+/* ── Section Titles (h2) ──────────────────────────────────── */
+
+.NDContentPage .CTitle {
+    font-size: 1.1rem;
+    color: #1a6494;
+    font-weight: 600;
+    margin-top: 0.6em;
+    margin-bottom: 0.05em;
+    margin-left: 0.75rem;
+    letter-spacing: 0.03em;
+    padding-bottom: 0.1em;
+    border-bottom: 1px solid #e2eaf2;
+}
+
+/* ── Subsection Titles (h3) ───────────────────────────────── */
+
+.NDContentPage .CSubTitle {
+    font-size: 0.875rem;
+    color: #4b5563;
+    font-weight: 600;
+    margin-top: 0.4em;
+    margin-bottom: 0.05em;
+    margin-left: 1.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding-bottom: 0.05em;
+    border-bottom: 1px dotted #e5e7eb;
+}
+
+/* ── Paragraphs ───────────────────────────────────────────── */
+
+.NDContentPage p {
+    margin-top: 0.15em;
+    margin-bottom: 0.2em;
+}
+
+.NDContentPage p + p {
+    margin-top: 0.35em;
+}
+
+.NDContentPage .CTitle + .CBody > p,
+.NDContentPage .CSubTitle + .CBody > p {
+    margin-top: 0.05em;
+}
+
+/* ── Links (override ND defaults) ─────────────────────────── */
+
+.NDContentPage .CBody a:link,
+.NDContentPage .CBody a:visited {
+    color: #1a6494;
+    text-decoration: none;
+}
+
+.NDContentPage .CBody a:hover,
+.NDContentPage .CBody a:active {
+    color: #1f3a5f;
+    text-decoration: underline;
+}
+
+/* Links inside prototypes */
+.NDPrototype a {
+    color: #1f3a5f;
+    text-decoration: none;
+}
+
+.NDPrototype a:hover {
+    text-decoration: underline;
+}
+
+/* ── Lists ────────────────────────────────────────────────── */
+
+.NDContentPage ul,
+.NDContentPage ol {
+    margin-top: 0.1em;
+    margin-bottom: 0.25em;
+    padding-left: 1.2em;
+}
+
+.NDContentPage li {
+    margin-bottom: 0.1em;
+}
+
+.NDContentPage li:last-child {
+    margin-bottom: 0;
+}
+
+/* ── Indentation (section) ────────────────────────────────── */
+
+.NDContentPage .CSection > .CBody > p,
+.NDContentPage .CSection > .CBody > blockquote,
+.NDContentPage .CSection > .CBody > pre,
+.NDContentPage .CSection > .CBody > table,
+.NDContentPage .CSection > .CBody > .NDPrototype {
+    margin-left: 0.75rem;
+}
+
+.NDContentPage .CSection > .CBody > ul,
+.NDContentPage .CSection > .CBody > ol {
+    margin-left: 0.75rem;
+    padding-left: 1.5rem;
+}
+
+/* ── Indentation (subsection) ─────────────────────────────── */
+
+.NDContentPage .CSubSection > .CBody > p,
+.NDContentPage .CSubSection > .CBody > blockquote,
+.NDContentPage .CSubSection > .CBody > pre,
+.NDContentPage .CSubSection > .CBody > table,
+.NDContentPage .CSubSection > .CBody > .NDPrototype {
+    margin-left: 1.5rem;
+}
+
+.NDContentPage .CSubSection > .CBody > ul,
+.NDContentPage .CSubSection > .CBody > ol {
+    margin-left: 1.5rem;
+    padding-left: 1.5rem;
+}
+
+/* ── Code & Prototypes ────────────────────────────────────── */
+
+.NDPrototype {
+    background: #f5f7fa;
+    border: 1px solid #dbe5f0;
+    border-left: 3px solid #1a6494;
+    padding: 0.5em 0.75em;
+    margin: 0.3em 0;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.85em;
+    line-height: 1.4;
+    overflow-x: auto;
+}
+
+.NDCodeSpan {
+    background: #f0f4f8;
+    border: 1px solid #dbe5f0;
+    padding: 0.1em 0.25em;
+    border-radius: 2px;
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.875em;
+    color: #1f3a5f;
+}
+
+/* ── Blockquotes ──────────────────────────────────────────── */
+
+.NDContentPage blockquote {
+    border-left: 2px solid #9db8d2;
+    margin: 0.3em 0 0.3em 0.75rem;
+    padding: 0.1em 0.75em;
+    color: #4b5563;
+    font-style: italic;
+}
+
+/* ── Tables ───────────────────────────────────────────────── */
+
+.NDContentPage table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    margin: 0.35em 0;
+}
+
+.NDContentPage th {
+    text-align: left;
+    padding: 0.25em 0.75em;
+    font-weight: 600;
+    color: #1f3a5f;
+    border-bottom: 2px solid #9db8d2;
+    background: #f0f4f8;
+}
+
+.NDContentPage td {
+    padding: 0.2em 0.75em;
+    border-bottom: 1px solid #e2eaf2;
+}
+
+.NDContentPage tr:last-child td {
+    border-bottom: none;
+}

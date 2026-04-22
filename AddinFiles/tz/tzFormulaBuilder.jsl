@@ -184,8 +184,6 @@ ns:MakeUTCToLocalFormula = Function( {sym, tz, outputType},
         err = exception_msg;
         throw("error wrapping output for matricies for tz = " || char(tz) || ": " || char(err))
     );
-    ns:ToLog("Debug", "MakeUTCToLocalFormula", Name Expr( coreExpr ) );
-    ns:ToLog("Debug", "MakeUTCToLocalFormula", "finished, returning in next line" );
     Name Expr( coreExpr );
 );
 

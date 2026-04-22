@@ -1,4 +1,4 @@
-Format: 2.3.1
+﻿Format: 2.3.1
 
 # This is the main file you use to configure Natural Docs for your project.
 
@@ -169,6 +169,7 @@ Ignore Source Folder Pattern: ..\.*
 # ------------------------------------------------------------------------
 
 HTML Output Folder: ..\AddinFilesTempForBuild\Docs
+   Style: custom
 
 
 # This is where you tell Natural Docs what kind of documentation you want
