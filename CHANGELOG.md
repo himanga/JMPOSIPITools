@@ -1,7 +1,7 @@
 # Changelog
 Notable changes to this project are documented here.
 
-## [HEAD]
+## [0.1304]
 
 ### Added
 - Settings are saved to the output table and they can be recalled.
