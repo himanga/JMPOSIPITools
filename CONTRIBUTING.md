@@ -129,22 +129,24 @@ If both apply to your environment:
 
 To release a new version:
 
-1. Merge all branches into master
-2. Run `build\build_Release.ps1` — ensure all unit tests pass
-3. Test all add-in functionality manually — UI elements and live data pulls are not covered by unit tests
-4. Ensure Help documentation is up to date
-5. Update the following files (do not commit yet):
+- Merge all feature branches that are ready into master
+- Run `build\build.ps1` as release, ensure all unit tests pass and no other errors
+- Test all add-in functionality manually — UI elements and live data pulls are not covered by unit tests
+- Ensure Help documentation is up to date
+- Update the following files (do not commit yet):
    - **`AddinFiles/customMetadata.jsl`**: update `addinVersion` and set `state` to `PROD` or `TEST`
    - **`AddinFiles/addin.def`**: update `addinVersion` to match `customMetadata.jsl`, update `minJmpVersion` if necessary
    - **`CHANGELOG.md`**: replace `HEAD` with the version number
-6. Run `build\build_Release.ps1` again — the build date is stamped automatically, no manual edit needed
-7. Save the output `.jmpaddin` file for upload to GitHub and the JMP Community
-8. Create a commit on master with message `Version x.xx` or `Version x.xx TEST`
-9. For production releases:
+- Run `build\build_Release.ps1` again copy the build date for later use
+- Save the output `.jmpaddin` file for upload to GitHub and the JMP Community
+- Update
+   - **`AddinFiles/customMetadata.jsl`** set the build date to match the output of the build from above (the one stored in the .jmpaddinfile)
+- Create a commit on master with message `Version x.xx` or `Version x.xx Test`
+- For production releases:
    - Create a git tag in the format `vx.xx` with message `Version x.xx`
    - Create a GitHub release from that tag, copying the relevant CHANGELOG section into the release notes
    - Upload the `.jmpaddin` file to the release assets
-10. Create a follow-up `bump` commit on master that:
+- Create a follow-up `bump` commit on master that:
     - In **`AddinFiles/customMetadata.jsl`**: increments `addinVersion` by 0.0001, increments `buildDate` by 1, sets `state` to `DEV`
     - In **`AddinFiles/addin.def`**: updates `addinVersion` to match
     - In **`CHANGELOG.md`**: adds a new `HEAD` section by duplicating the section headings from the previous release

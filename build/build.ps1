@@ -58,8 +58,11 @@ try {
     }
 
     Write-Host "`nBUILD SUCCEEDED ($Preset)"
+
+    Write-Host"`n`nBuild Date: $stamp"
 }
 catch {
     Write-Error "BUILD FAILED: $($_.Exception.Message)"
+    Write-Host"`n`nBuild date was $stamp but it isn't ready."
     exit 1
 }
