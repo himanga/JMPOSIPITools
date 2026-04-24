@@ -17,6 +17,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+. "$ProjectRoot/build/buildConfig.ps1"
+. "$ProjectRoot/build/buildUtils.ps1"
+
 $allowedPresets = @('Quick', 'Release', 'Custom')
 if ($Preset -notin $allowedPresets) {
     throw "Invalid preset '$Preset'. Allowed: $($allowedPresets -join ', ')"
@@ -49,20 +52,22 @@ function Invoke-Step {
         throw "Step script not found: $stepPath"
     }
     Write-Host "`n=== $Name ==="
-    & $stepPath -ProjectRoot $projectRoot
+    & $stepPath -ProjectRoot $projectRoot -UpdateTime $UpdateTime
 }
 
+
 try {
+    $UpdateTime = Get-TimestampForJMP
+
     foreach ($step in $stepsToRun) {
         Invoke-Step $step
     }
 
     Write-Host "`nBUILD SUCCEEDED ($Preset)"
-
-    Write-Host"`n`nBuild Date: $stamp"
+    Write-Host "`nBuild Date: $UpdateTime `n"
 }
 catch {
     Write-Error "BUILD FAILED: $($_.Exception.Message)"
-    Write-Host"`n`nBuild date was $stamp but it isn't ready."
+    Write-Host"`nBuild date was $UpdateTime but it isn't ready.`n"
     exit 1
 }

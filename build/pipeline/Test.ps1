@@ -9,7 +9,10 @@ Section: Globals
 #>
 param(
     [Parameter(Mandatory)]
-    [string]$ProjectRoot
+    [string]$ProjectRoot,
+
+    [Parameter(Mandatory)]
+    [long]$UpdateTime
 )
 
 $ErrorActionPreference = 'Stop'
@@ -53,6 +56,7 @@ foreach ($thisjmpExe in $JmpVersionsToTest) {
     $pathTestLog = Join-Path (Get-Location) "temp-buildtestdataLog-$($safeJmpName).jsl"
 
 Set-Content $pathTestScript @"
+//!
 tzLogs = Log Capture(
     global:pathTestOutput = "$($pathTestOutput -replace '\\', '/')";
     Include( "$pathTestsConfigDefault" );
@@ -69,6 +73,9 @@ Quit("No Save");
 "@
 
     Start-Process $thisjmpExe -ArgumentList "`"$pathTestScript`"" -Wait -NoNewWindow
+
+    # seeing if JMP 20 appears to close before the file sare actually available to read 
+    Start-Sleep -Seconds 5
 
     if (-not (Test-Path $pathTestOutput)) {
         throw "Unit test output was not generated"

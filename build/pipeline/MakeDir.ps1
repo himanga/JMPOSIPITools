@@ -8,7 +8,10 @@ Section: Globals
 #>
 param(
     [Parameter(Mandatory)]
-    [string]$ProjectRoot
+    [string]$ProjectRoot,
+
+    [Parameter(Mandatory)]
+    [long]$UpdateTime
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,10 +35,8 @@ if (-not (Test-Path $metaPath)) {
     throw "Custom metadata file not found: $metaPath"
 }
 
-$stamp = Get-TimestampForJMP
-
 (Get-Content $metaPath) `
-    -replace 'List\( "buildDate", (\d+) \),', "List( `"buildDate`", $stamp )," |
+    -replace 'List\( "buildDate", (\d+) \),', "List( `"buildDate`", $UpdateTime )," |
     Set-Content $metaPath
 
 Write-Host "Prepare step completed"

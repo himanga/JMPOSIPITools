@@ -7,7 +7,10 @@ Section: Globals
 #>
 param(
     [Parameter(Mandatory)]
-    [string]$ProjectRoot
+    [string]$ProjectRoot,
+
+    [Parameter(Mandatory)]
+    [long]$UpdateTime
 )
 
 $ErrorActionPreference = 'Stop'
