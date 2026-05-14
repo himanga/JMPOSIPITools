@@ -66,8 +66,11 @@ ns:CheckConnectionsinUserPref = function({}, {DEFAULT LOCAL},
 		New Column( "TimeLocal", Numeric, "Continuous", Format( "yyyy-mm-ddThh:mm:ss", 19, 0 ), Input Format( "yyyy-mm-ddThh:mm:ss", 0 ) ),
 		New Column( "TimeDifference", Numeric, "Continuous", Format("Best", 12), Formula(:TimeLocal - :TimeServer)),
 		New Column( "Server webid", Character, "Nominal", Set Display Width(175) ),
+		New Column( "sinusoid webid", Character, "Nominal", Set Display Width(175) ),
+		New Column( "sinusoid snapshot", Numeric, "Continuous", Set Display Width(100) ),
 		New Column( "Error Getting Time", Character, "Nominal", Set Display Width(175) ),
-		New Column( "Error Getting Server", Character, "Nominal", Set Display Width(175) );
+		New Column( "Error Getting Server", Character, "Nominal", Set Display Width(175) ),
+		New Column( "Error Getting Sinusoid", Character, "Nominal", Set Display Width(175) )
 	);
 
 	dtConnections << Maximize Window( 1 );
@@ -84,15 +87,41 @@ ns:CheckConnectionsinUserPref = function({}, {DEFAULT LOCAL},
 			dtConnections:TimeServer[i] = ns:FetchUtcHeader(conn);
 			dtConnections:TimeLocal[i] = Today() - ns:GetLocalTimeZoneDifference(conn);
 			try(
-				dtConnections:Server webid[i] = ns:DataServerIdRequest(conn),
+				dtConnections:Server webid[i] = ns:DataServerIdRequest(conn);
+				try(
+					{pointIDs, pointNames} = ns:PointRequest(
+						conn,
+						dtConnections:Server webid[i],
+						{"sinusoid"},
+						{""},
+						"Pattern"
+					);
+					dtConnections:sinusoid webid[i] = pointIDs[1];
+					if( n items(pointIDs) == 0,
+						dtConnections:Error Getting Sinusoid[i] = "Tag 'sinusoid' not found on server"
+					,
+						dtSnap = ns:GetSnapshotValuesTable( conn, pointIDs );
+						snapStatus = column(dtSnap, "status")[1];
+						snapValue  = column(dtSnap, "value")[1];
+						dtSnap << Close Window( No Save );
+						dtConnections:sinusoid snapshot[i] = snapValue;
+						// Anything other than "Good" goes in the error column
+						if( snapStatus != "Good",
+							dtConnections:Error Getting Sinusoid[i] = "Returned tag status: " || snapStatus
+						);
+					)
+				,
+					dtConnections:Error Getting Sinusoid[i] = char(exception_msg)
+				)
+			,
 				dtConnections:Error Getting Server[i] = char(exception_msg)
-			)
+			);
 		,
 			dtConnections:Error Getting Time[i] = char(exception_msg)
 		);
 		//make sure table updates
 		dtConnections << Run Formulas();
 		dtConnections << bring window to front;
-		wait(0.1);
+		wait(0);
 	);
 );
