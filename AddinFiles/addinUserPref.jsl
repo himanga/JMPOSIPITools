@@ -65,13 +65,17 @@ ns:LoadUserPref = function ({},
 							if(ns:PrefInfo[pref][2] == "char",
 								if(!(Type(savedPref[pref]) == "String"), throw("Error reading preference from file, " || char(pref) || " should be a string, it was a " || Type(newPref[pref])));
 								if(n items(ns:PrefInfo[pref][3]) > 0, 
-									if(!(contains(ns:PrefInfo[pref][3], savedPref[pref])), throw("Error reading preference from file, value not in the list of allowable values"));
+									if(!(contains(ns:PrefInfo[pref][3], savedPref[pref])), throw(
+										"Error reading preference from file, value not in the list of allowable values. " || 
+										try("'" || savedPref[pref] || "' should be one of: " || char(ns:PrefInfo[pref][3]) || "." )
+									));
 								),
 								Print("Warning: unhandled preference type (" || pref || ") while reading from file - it was retained.")
 							),
 							Print("Warning: unknown preference (" || pref || ") read from file - it was retained.")
 						)),
-						expr(loaderrors), "Error checking preference validitiy while loading preferences file", 1 );
+						expr(loaderrors), "Error loading preference (" || 
+							try(char(pref), "unknown preference") || ").", 1 );
 					ns:TryAppendError(Expr( newPref[pref] = savedPref[pref] ), 
 						expr(loaderrors), "Error storing preference while loading preferences file", 1 )
 				);

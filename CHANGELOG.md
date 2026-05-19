@@ -7,10 +7,10 @@ Notable changes to this project are documented here.
 - 
 
 ### Changed
-- 
+- Check connections also pull sinusoid snapshot.
 
 ### Fixed
-- 
+- Improve unhelpful error when loading corrupt preference file.
 
 ## [0.1304]
 

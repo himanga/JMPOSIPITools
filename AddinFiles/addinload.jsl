@@ -72,7 +72,7 @@ ns:PrefInfo = Associative Array({
 	{"Default_TimeZone", {
 		"Default timezone for output tables. Use an IANA timezone name (e.g. America/Chicago), current_offset, or server.",
 		"char",
-		{"Default_TimeZone", "America/Chicago"}
+		{}
 	}}
 });
 
